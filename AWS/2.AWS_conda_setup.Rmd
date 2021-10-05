@@ -123,10 +123,10 @@ conda config --set allow_conda_downgrades true
 
 ## Install
 ## Example programs for RNA-seq data cleaning
-conda install -c conda-forge -y fastqc samtools
+conda install -c conda-forge -y fastqc 
 conda install -y adapterremoval bedtools
 conda install -c bioconda/label/cf201901 -y picard star subread
-conda update --all
+conda install -y "samtools>=1.10"
 
 #Check installs
 conda list
