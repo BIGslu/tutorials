@@ -12,7 +12,7 @@ editor_options:
 urlcolor: blue
 ---
 
-This is a bare bones tutorial of how to install R and associated packages on an Amazon AMI EC2 instance. It assumes that you have followed `1.AWS_setup_tutorial.pdf` to setup an AWS account and are familiar with the steps to create an EC2 instance.
+This is a bare bones tutorial of how to install R and associated packages on an Amazon AMI EC2 instance. It assumes that you have followed [AWS setup tutorial](https://github.com/BIGslu/tutorials/blob/main/AWS/1.AWS_setup_tutorial.pdf) to create an AWS account and are familiar with the steps to create an EC2 instance.
 
 # Create EC2 instance
 
