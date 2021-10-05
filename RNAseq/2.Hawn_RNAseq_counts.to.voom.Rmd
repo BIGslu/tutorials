@@ -1,0 +1,617 @@
+---
+title: "RNA-seq data cleaning"
+subtitle: "Counts to voom"
+author: "Kim Dill-McFarland, kadm@uw.edu"
+date: "version `r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+editor_options:
+  chunk_output_type: console
+urlcolor: blue
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.height=2.5) 
+```
+
+# Overview
+
+This document covers the Hawn lab recommended data cleaning pipeline for RNA-seq gene count tables. This pipeline includes quality assessment, filtering, and normalization of count tables generated in the [fastq to counts][pipeline1] pipeline. The example data are human, bulk, paired-end RNA-seq, but this pipeline can be applied to other organisms or single-read libraries. 
+
+# 0. Setup
+## Software
+
+This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should also install the following packages.
+
+```{r eval=FALSE}
+#CRAN packages
+install.packages(c("tidyverse", "ggrepel", "scales"))
+
+#Bioconductor packages
+install.packages("BiocManager")
+BiocManager::install(c("edgeR", "limma", "biomaRt", "patchwork"))
+
+#GitHub packages
+install.packages("devtools")
+devtools::install_github("BIGslu/BIGverse", force=TRUE)
+devtools::install_github("zhangyuqing/sva-devel")
+```
+
+And load them into your current R session.
+
+```{r warning=FALSE}
+library(tidyverse)
+library(BIGverse)
+library(scales)
+library(sva)
+library(ggrepel)
+library(patchwork)
+library(limma)
+library(edgeR)
+#Note we do not load biomaRt because it has conflicts with the tidyverse.
+# We instead call its functions with biomaRt::
+
+set.seed(651)
+```
+
+## Directory structure
+
+To directly use the code in this pipeline, you must organize your files as follows.
+
+```{r dir_structure, echo=FALSE, message=FALSE}
+library(DiagrammeR)
+grViz(diagram = "digraph flowchart {
+  node [fontname = arial, shape = retangle, fontsize=8, height=0.1]
+  dir1 [label = '@@1']
+  dir2 [label = '@@2']
+  dir3 [label = '@@3']
+  dir4 [label = '@@4']
+  dir5 [label = '@@5']
+  dir6 [label = '@@6']
+  dir7 [label = '@@7']
+  dir8 [label = '@@8']
+  dir9 [label = '@@9']
+
+  dir1 -> dir2,dir3,dir4,dir5;
+  dir2 -> dir6,dir7,dir8,dir9;
+  }
+  
+  [1]: 'Rproject/'
+  [2]: 'data_raw/'
+  [3]: 'data_clean/'
+  [4]: 'results/'
+  [5]: 'figs/'
+  [6]: 'counts/'
+  [7]: 'metrics/'
+  [8]: '*sample_meta.csv'
+  [9]: '*patient_meta.csv'
+  ")
+```
+
+The `data_raw/` sub-directories should contain outputs from the [fastq to counts][pipeline1] pipeline including a counts table (`counts/`) and samtools `flagstat` and Picard tables (`metrics/`).
+
+## Example data
+
+Example data were obtained from virus-stimulated human plasmacytoid dendritic cells. For full methods, see Dill-McFarland *et al*. 2021. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. In revision [GitHub](https://github.com/altman-lab/P259_pDC_public). Actual patient identifiers and metadata have been altered for this tutorial. Of note, these data were obtained from the same data set as the `kimma` package.
+
+# 1. Format data
+## 1.1: Alignment metrics
+
+Our fastq pipeline outputs one `.tsv` per library per quality assessment. Thus, each library has three files in `data_raw/metrics/`: `*Aligned_flagstat.tsv`, `*filter_flagstat.tsv`, and `*Aligned_picard.tsv`. We use our custom function to extract and merge all of these files.
+
+```{r}
+metric <- RNAetc::clean_metrics(dir = "data_raw/metrics/", flagstat = TRUE, picard = TRUE)
+```
+
+This results in a data frame with the following metrics for each sequencing library.
+
+```{r echo=FALSE}
+colnames(metric)[-1]
+```
+
+## 1.2: Sample and library metadata
+
+Next, we read in and combine any patient and/or sample metadata. You may have only one of these data types. In general, patient data include things like age, sex, and any variable that is assigned to each person in the study. In contrast, sample data are variables assigned to each library, like experimental treatment, quality, etc. We combine these along with the above metrics table to make a single data frame with all metadata.
+
+```{r}
+patient <- read_csv("data_raw/P259_patient_meta.csv")
+sample <- read_csv("data_raw/P259_sample_meta.csv") %>% 
+  #format any variables that need to be factors
+  mutate(virus = fct_relevel(factor(virus), ref="none"))
+
+meta <- full_join(sample, patient, by = "ptID") %>% 
+  full_join(metric, by = "libID")
+```
+
+This adds the following variable to the alignment metrics.
+
+```{r echo=FALSE}
+meta[1:10,1:7]
+```
+
+## 1.3: Counts table
+
+Output by Subread `featureCounts`, the counts table needs some basic cleaning to become a numeric data frame with genes as rows and libraries as columns. We use a custom function in `RNAetc` to read in and format these data.
+
+```{r}
+count <- RNAetc::read_fcounts("data_raw/counts/P259.featurecounts.tsv")
+
+count
+```
+
+# 2. Quality-filter data
+## 2.1: Filter poor-quality libraries
+
+We assess sample quality using several metrics from samtools `flagstat` and Picard. Our standard assessment includes:
+
+* Pass-filter sequences (`to.align`)
+* Percent alignment (pass-filter alignments/sequences, `align.filtered`/`to.align`)
+* Median coefficient of variation (CV) of coverage (`MEDIAN_CV_COVERAGE`)
+
+Ideal libraries have high total sequences, high percent alignment, and low CV coverage. Cutoffs for sample removal will vary by data set but our starting recommendations are to remove libraries with: 
+
+* sequences < 1,000,000
+* CV coverage > 1
+* alignment < 75%
+
+Set your cutoffs here.
+
+```{r}
+seq_cutoff <- 1E6
+cv_cutoff <- 1
+align_cutoff <- 75
+```
+
+For the example data, we see that we do not need to remove any libraries as all of them pass the above cutoffs. 
+
+```{r seqs}
+ggplot(metric, aes(x = reorder(libID, to.align), y = to.align)) +
+  geom_col() +
+  #Add cutoff line
+  geom_hline(yintercept = seq_cutoff) +
+  #Log scale y-axis
+  scale_y_continuous(trans = 'log10',
+    breaks = trans_breaks("log10", function(x) 10^x),
+    labels = trans_format("log10", math_format(10^.x))) +
+  #Beautify
+  theme_classic() +
+  labs(x = "Library", y = "Pass-filter sequences (log scale)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r cv_coverage}
+#Set CV max to the largest of 1 or max in dataset
+CV_max <- max(1, max(metric$MEDIAN_CV_COVERAGE))
+
+ggplot(metric, aes(x = MEDIAN_CV_COVERAGE, y = align.filtered/to.align*100)) +
+  geom_point() +
+  #Rescale axis limits
+  lims(x = c(0,CV_max), y=c(0,100)) +
+  #Add cutoff lines
+  geom_hline(yintercept = align_cutoff, lty="dashed") +
+  geom_vline(xintercept = cv_cutoff, lty="dashed") +
+  #Beautify
+  theme_classic() +
+  labs(x = "Median CV coverage", y="Percent alignment")
+```
+
+If we set harsher cutoffs such as CV coverage > 0.7, 1 library would fail as shown here. Note the use of `geom_text_repel` to label outlying libraries.
+
+```{r cv_coverage_labeled}
+cv_cutoff2 <- 0.7
+
+ggplot(metric, aes(x = MEDIAN_CV_COVERAGE, y = align.filtered/to.align*100)) +
+  geom_point() +
+  #Rescale axis limits
+  lims(x = c(0,CV_max), y=c(0,100)) +
+  #Add cutoff lines
+  geom_hline(yintercept = align_cutoff, lty="dashed") +
+  geom_vline(xintercept = cv_cutoff2, lty="dashed") +
+  #Label points outside cutoffs
+  geom_text_repel(data=filter(metric, MEDIAN_CV_COVERAGE > cv_cutoff2 | 
+                              align.filtered/to.align*100 < align_cutoff),
+            aes(label=libID), show.legend = FALSE, max.overlaps = Inf,
+            box.padding = 1) +
+  #Beautify
+  theme_classic() +
+  labs(x = "Median CV coverage", y="Percent alignment")
+```
+
+However, these stricter cutoffs are not necessary for these data. If libraries needed to be removed, you can use the following code to do so.
+
+```{r}
+meta.filter <- meta %>% 
+  filter(MEDIAN_CV_COVERAGE < cv_cutoff & to.align > seq_cutoff &
+           align.filtered/to.align*100 > align_cutoff)
+
+count.filter <- count %>% 
+  select(1, all_of(meta.filter$libID))
+```
+
+Here, this removes `r nrow(meta)-nrow(meta.filter)` libraries.
+
+## 2.2: Filter non-protein-coding genes
+
+Standard differential expression analyses focus on protein-coding genes as these RNA products are the most likely to result in a measurable phenotype. 
+
+We annotate the counts table genes to their biotypes as well as additional identifiers with `biomaRt`.
+
+```{r ensembl}
+#Get database
+ensembl <- biomaRt::useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl",
+                                mirror = "uswest")
+
+#Format gene key
+key <- biomaRt::getBM(attributes=c("ensembl_gene_id", "entrezgene_id", "hgnc_symbol", 
+                                        "gene_biotype", "chromosome_name",
+                                        "start_position", "end_position"), mart=ensembl) %>% 
+  #Filter protein coding genes
+  filter(gene_biotype == "protein_coding")
+
+key.filter <- key %>% 
+  #Filter protein coding genes in count table
+  filter(ensembl_gene_id %in% count$ensemblID) %>% 
+  #collapse multiannotations.
+  group_by(ensembl_gene_id, hgnc_symbol, gene_biotype, 
+           chromosome_name, start_position, end_position) %>% 
+  summarise(entrezgene_id = list(unique(entrezgene_id)), .groups = "drop") %>% 
+  group_by(ensembl_gene_id, entrezgene_id, gene_biotype, 
+           chromosome_name, start_position, end_position) %>% 
+  summarise(hgnc_symbol = list(unique(hgnc_symbol)), .groups = "drop")
+```
+
+Then, we filter the count table to genes in the protein-coding key.
+
+```{r}
+count.filter.pc <- count.filter %>% 
+  filter(ensemblID %in% key.filter$ensembl_gene_id)
+```
+
+This removes `r nrow(count.filter)-nrow(count.filter.pc)` genes from this data set. These data were somewhat pre-filtered so you will likely see many more genes removed in this step. In the current human genome (GRCh38 release 104), there are `r nrow(key)` protein-coding genes, of which `r nrow(count.filter.pc)` were found in this data set.
+
+## 2.3: Correct batch effects
+
+If your libraries were obtained from multiple experiments and/or sequenced on multiple runs, batch effects may exist in the data. These effects will mask true biological signals and should be corrected prior to modeling. There are a number of ways to batch correct. Our preferred method is with [ComBat-Seq][combat] implemented in `sva`.
+
+First, we look for batch effects in PCA. These effects may be apparent in an overall shift of libraries in a batch.
+
+```{r PCA1a}
+BIGpicture::plot_pca(count.filter.pc, meta=meta.filter, 
+                     vars="batch", transform_logCPM=TRUE)
+```
+
+Or by highlighting libraries sequenced in multiple batches. In your analysis, you will need to change the `unique.ID` variables to those that uniquely identify a sample. For example, these samples can be uniquely identified by patient and virus stimulation.
+
+```{r}
+unique.ID <- c("ptID", "virus")
+
+#Identify duplicate libraries
+dups <- meta.filter %>% 
+  unite("dupID", all_of(unique.ID), remove=FALSE)  %>% 
+  count(dupID) %>% 
+  filter(n>1)
+
+#Create duplicate ID variable
+meta.filter.dups <- meta.filter %>% 
+  unite("dupID",unique.ID,remove=FALSE)  %>% 
+  mutate(duplicate = ifelse(dupID %in% dups$dupID, dupID, NA))
+```
+
+```{r PCA1b}
+BIGpicture::plot_pca(count.filter.pc, meta=meta.filter.dups, 
+                     vars="duplicate", transform_logCPM=TRUE)
+```
+
+Here, we see apparent batch effects where batch A tends to have larger PC2 values than batch B. This is re-enforced by the duplicate samples which group on PC2 more by batch than by duplicate ID.
+
+To correct batch effects, we use negative binomial normalization with `sva` ComBat-Seq including any main `group` effects (virus stimulation) and co-variates `covar` (sex) we want to retain in our later models. This ensures that we don't over-correct the data and lose our biological signals of interest.
+
+We also reduce the data set with `shrink = TRUE, gene.subset.n = 2` to run models on 2 random genes. This significantly reduces computational time for this tutorial, though a real analysis should be run on a larger subset. We recommend anywhere from 10,000 to all genes in the data.
+
+```{r combat}
+count.filter.pc.combat <- count.filter.pc %>% 
+  #Convert count df to matrix
+  column_to_rownames("ensemblID") %>% 
+  as.matrix() %>% 
+  #Batch correction
+  sva::ComBat_seq(., batch = meta.filter$batch,
+                 group = meta.filter$virus,
+                 covar_mod = model.matrix(~ sex, meta.filter),
+             shrink = TRUE, gene.subset.n = 2) %>% 
+  as.data.frame()
+```
+
+Note that the total "co-variates" listed in the above message includes non-reference levels of the main effects (HRV) plus variables listed as `covar` (sex).
+
+This new data set should have reduced batch effects. However, some batch effects likely still exist as this is a difficult correction and we err on the side of less correction to preserve as much of the original data as possible. In this example, we did a rather poor correction based on only 2 genes. So not surprisingly, there is still some apparent splitting by batch.
+
+```{r PCA2}
+BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter.dups, 
+                     vars=c("batch","duplicate"), transform_logCPM=TRUE) %>% 
+  wrap_plots(ncol=2)
+```
+
+In another data set corrected using all genes, we can more readily see a reduction in the batch effects shown by color below.
+
+![](figs/pca_raw.png){width=30%} ![](figs/pca_combat.png){width=30%} 
+
+#### Other batch correction methods
+
+If ComBat-Seq does not appear to reduce the batch effects in your data, you may also consider:
+
+* `scBatch` quantile normalization with `QuantNorm( )`
+* `limma` batch correction based only on duplicate samples with `removeBatchEffect( )`. This would be applied during linear modeling as seen in the [voom to DEG][pipeline3] tutorial
+* Including batch as a variable in linear modeling. You may do this in addition to batch correction or on its own with the uncorrected data
+
+#### Choosing not to correct batch effects
+
+Even if you have measurable batch effects, you may not wish to perform batch correction. This correction directly alters count values and can lead to lose of signal for your actual variables of interest. Some things to consider include:
+
+* How strong are the batch effects? This can be roughly estimated based on the PC to which the batch variable best aligns. In the above data, this is PC2 which explains a substantial percent of variation (17%). Thus, the batch effects are also likely substantial. If the batch PC explains only a small amount of variation, you may wish to skip batch correction as the effects were minimal.
+* Does batch correction improve the PCA? After running batch correction, you may not see much improvement in the PCA. Thus, this method did not improve your data and you will likely need to include batch in your models and carefully consider any genes of interest that are also significant for batch.
+
+## 2.4: Filter PCA outliers
+
+Sometimes one or more libraries will appear as outliers in PCA. We define this as any library more than 3 standard deviations away from the mean on PC1 and/or PC2. Here, we have no outliers.
+
+```{r PCA3}
+pca3 <- BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter, 
+                     vars="outlier", transform_logCPM=TRUE)
+pca3
+```
+
+You may define outliers at a more or less strict level (`outlier_sd`) or wish to determine them separately within each group of interest (`outlier_group`). For example here, there are two outliers more than 1.5 sd away from the mean within batch.
+
+```{r PCA4}
+BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter, 
+                     vars="outlier", transform_logCPM=TRUE,
+                     outlier_sd = 1.5, outlier_group = "batch")
+```
+
+We recommend that you initially remove dramatic outliers but leave those that are borderline or questionable. Then, you can re-assess outliers after gene filtering and normalization. You may find that some are no longer outliers after these steps. If they are, you can return to this step and remove them before repeating subsequent steps. 
+
+If outlier libraries need to be removed, you can use the following code to do so.
+
+```{r}
+not.outlier <- pca3$outlier$data %>% 
+  filter(col.group == "no")
+
+meta.filter.out <- meta.filter %>% 
+  filter(libID %in% not.outlier$libID)
+
+count.filter.pc.combat.out <- count.filter.pc.combat %>% 
+  select(1, all_of(meta.filter.out$libID))
+```
+
+Here, this removes `r nrow(meta.filter)-nrow(meta.filter.out)` libraries.
+
+## 2.5: Filter duplicate libraries
+
+Your data may have have one or more libraries that represent the same sample. This is common when multiple sequencing batches are completed and a couple of samples are re-sequenced to aid in batch effect detection. Unless the majority of samples have multiple libraries (*i.e.* technical replicates), the duplicates should be removed or they will skew downstream analysis.
+
+We usually keep the library with the highest number of sequences like so.
+
+```{r}
+#Using the name unique ID variables as seen in batch correction
+unique.ID
+
+#Find libraries with highest seqs
+meta.filter.out.dedup <- meta.filter.out %>% 
+  group_by_at(unique.ID) %>% 
+  slice_max(order_by = to.align)
+
+#Filter lower seq libraries
+count.filter.pc.combat.out.dedup <- count.filter.pc.combat.out %>% 
+  select(1, all_of(meta.filter.out.dedup$libID))
+```
+
+Here, this removes `r nrow(meta.filter.out)-nrow(meta.filter.out.dedup)` libraries, which matches what we expect from the duplicate PCA.
+
+## 2.6: Create DGEList
+
+At this stage, we've completed sample filtering and can collapse our count and meta data into a single list object. This allows us to shorten our long object names as well as works efficiently with the remaining cleaning steps.
+
+First, let's ensure that all the data are in the same order.
+
+```{r}
+meta.filter.out.dedup.ord <- meta.filter.out.dedup %>% 
+  arrange(libID)
+
+count.filter.pc.combat.out.dedup.ord <- count.filter.pc.combat.out.dedup %>% 
+  select(1, all_of(meta.filter.out.dedup.ord$libID))
+
+#check
+identical(meta.filter.out.dedup.ord$libID,
+          colnames(count.filter.pc.combat.out.dedup.ord))
+```
+
+Then, we merge into the DEGList object, `edgeR` format.
+
+```{r}
+dat <- DGEList(
+  #count table
+  # Note that if you did not do batch correction, you may need to 
+  # move gene names from a variable in the df to rownames
+  counts=as.matrix(count.filter.pc.combat.out.dedup.ord),
+  #metadata
+  samples=meta.filter.out.dedup.ord,
+  #gene info
+  genes=key.filter)
+```
+
+## 2.7: Filter low abundance genes
+
+Low abundance (small counts) and rare genes (many 0 counts) are removed from the data because they:
+
+* are unlikely to be significantly differentially expressed
+* greatly inflate multiple comparison correction 
+* often do not meet linear modeling assumptions regarding mean variance trends (*e.g.* because of small N, they show lower variance than what is expected for their mean expression - see plot below)
+
+```{r fig.width=4}
+BIGpicture::plot_mv(dat, design = "~ virus")
+```
+
+Our goal is to remove genes in the lower left where counts (x) and variance (y) are low *e.g.* where genes break the mean variance trend. We use our custom function to retain only genes that are at least `min.CPM` counts per million in at least `min.sample` number of samples OR in at least `min.pct` percent of samples. Here, we use 0.5 CPM in at least 3 samples.
+
+```{r}
+dat.abund <- RNAetc::filter_rare(dat, min.CPM = 0.5, min.sample = 3,
+                                 gene.var="ensembl_gene_id")
+```
+
+Plotting the filtered data, we see the trend line (red) is roughly linear and the lower left tail is mostly removed.
+
+```{r fig.width=4}
+plot_mv(dat.abund, design = "~ virus")
+```
+
+```{r echo=FALSE}
+#Count genes removed
+genes <- nrow(dat$genes)
+genes.abund <- nrow(dat.abund$genes)
+```
+
+There is no exact cutoff for this filtering, and you should try several cutoffs to observe the effects. In general, we use minimum CPM from 0.1 - 1, minimum samples around 3 for small data sets, or minimum samples from 5 - 10% in larger data sets. This results in the removal of around 25% of genes. Here, our filtering is on the stricter side, removing `r genes-genes.abund` or `r round((genes-genes.abund)/genes*100, digits=0)`% of genes. 
+
+You may also wish to look for specific genes of interest and ensure they are not being filtered. This following calculates some statistics on filtered genes and saves a `csv` for your perusal.
+
+```{r}
+rare <- as.data.frame(cpm(dat$counts)) %>% 
+  #Filter genes removed
+  rownames_to_column("ensembl_gene_id") %>% 
+  filter(!(ensembl_gene_id %in% rownames(dat.abund$counts))) %>% 
+  #Add gene symbols
+  left_join(dat$genes, by = "ensembl_gene_id") %>% 
+  #format
+  select(-c(chromosome_name:end_position)) %>%
+  pivot_longer(-c(ensembl_gene_id, gene_biotype, hgnc_symbol, entrezgene_id)) %>% 
+  group_by(ensembl_gene_id, gene_biotype, hgnc_symbol) %>% 
+  summarise(mean.CPM = mean(value, na.rm=TRUE),
+            min.CPM = min(value, na.rm=TRUE),
+            max.CPM = max(value, na.rm=TRUE),
+            express.in.libs = length(value[value > 0]),
+            .groups="drop")
+
+write_csv(rare, file="data_clean/P259_rare_genes.csv")
+rare
+```
+
+# 3. Normalize data
+## 3.1: Trimmed mean of M (TMM)
+
+RNA-seq counts are not independent within a library and not comparable across libraries. A library with 1 million sequences will have higher counts for most genes than one with 1 thousand sequences. We correct for this aspect of the data with the following normalization steps.
+
+TMM defines a reference sample from your data set as the one with the most representative expression for the overall data set. Specifically, the reference sample is the one whose upper quartile is closest to the overall data set upper quartile. The upper quantile is the value (`x`) where 75% of genes have expression < `x`. Thus, the reference sample is the sample whose `x` is the closest to mean(`x`) across all samples.
+
+All other samples are considered test samples. For each test sample, a scaling factor is calculated based on the weighted mean of log ratios of representative genes between the test and reference. These representative genes are a subset of the data set, removing the highest and lowest expressed genes as well as genes with the highest and lowest log ratios. The exact genes used as representative genes for scaling are dynamic and specific to each test sample.
+
+The calculated scaling factors are then applied to the counts table automatically in the `voom` step.
+
+```{r tmm}
+dat.abund.norm <- calcNormFactors(dat.abund, method = "TMM")
+```
+
+## 3.2: voom aka log2 counts per million (CPM)
+
+We continue normalization by converting counts to CPM within each sample, thus accounting for differential sampling depth. We also perform log2 transformation, because RNA-seq data are heavily right-skewed and thus, violate assumptions of normality.
+
+```{r warning=FALSE}
+as.data.frame(dat.abund$counts) %>% 
+  rownames_to_column() %>% 
+  pivot_longer(-rowname) %>% 
+ggplot() +
+  geom_histogram(aes(x=value), bins = 100) +
+  theme_classic() +
+  labs(x = "count", y = "occurences") +
+  lims(x=c(0,1000))
+```
+
+`voom` performs both of these steps! We use `voomWithQualityWeights` to additionally calculate sample specific quality weights that can be of use as co-variates in linear modeling.
+
+```{r voom, fig.height=3.5}
+dat.abund.norm.voom <- voomWithQualityWeights(
+                           dat.abund.norm,
+                           design=model.matrix(~ virus, data=dat.abund.norm$samples),
+                           plot=TRUE)
+```
+
+# 4. Summary and save
+#### Filtering
+
+The following summarizes libraries removed from analysis. In this tutorial, all libraries pass-filter and move on to analysis.
+
+```{r echo=FALSE}
+meta %>% 
+  #ID filters
+  mutate(
+    CV.filter = ifelse(MEDIAN_CV_COVERAGE > cv_cutoff, 
+                             "high CV coverage", NA),
+    dup.filter = ifelse(align.filtered/to.align*100 < align_cutoff, 
+                            "low align %", NA),
+    seq.filter = ifelse(to.align < seq_cutoff, 
+                              "low total seqs", NA),
+    pca.filter = ifelse(libID %in% meta.filter$libID &
+                        !(libID %in% meta.filter.dups$libID),
+                        "PCA outlier", NA),
+    dupSamp.filter = ifelse(libID %in% meta.filter.dups$libID &
+                        !(libID %in% meta.filter.out$libID),
+                        "duplicate sample", NA)) %>% 
+  #Combine filter tags
+  mutate(filter = paste(CV.filter, dup.filter, seq.filter,
+                        pca.filter, dupSamp.filter, sep=", ")) %>% 
+  mutate(filter = gsub("NA, ","",filter)) %>% 
+  mutate(filter = gsub(", NA","",filter)) %>% 
+  mutate(filter = gsub("NA","",filter)) %>% 
+  #Add pass filter label
+  mutate(filter = ifelse(filter=="","pass-filter",filter)) %>% 
+  select(libID, filter)
+```
+
+#### PCA
+
+To get an initial sense of the cleaning data, we plot all our variables of interest as well as double-check any potential outliers. Here, we see a clear viral stimulation signal, some lingering batch effects, and no outliers.
+
+```{r pca_final, fig.height=7.5}
+plot_pca(dat.abund.norm.voom, vars = c("virus","ptID","sex","batch","outlier")) %>% 
+  wrap_plots(ncol=2)
+```
+
+#### Save
+
+Write as `RData`
+
+```{r}
+save(dat.abund.norm, file = "data_clean/P259_dat.RData")
+save(dat.abund.norm.voom, file = "data_clean/P259_voom.RData")
+```
+
+Write counts as `csv`
+
+```{r}
+as.data.frame(dat.abund.norm$counts) %>% 
+  rownames_to_column("ensembl_gene_id") %>% 
+  write_csv("data_clean/P259_counts.csv")
+
+as.data.frame(dat.abund.norm.voom$E) %>% 
+  rownames_to_column("ensembl_gene_id") %>% 
+  write_csv("data_clean/P259_counts_voom.csv")
+```
+
+# R session
+
+```{r}
+sessionInfo()
+```
+
+[R]: https://cran.r-project.org/
+[RStudio]: https://www.rstudio.com/products/rstudio/download/
+[pipeline1]: https://github.com/BIGslu/tutorials/blob/main/RNAseq/1.Hawn_RNAseq_fastq.to.counts.pdf
+[pipeline3]: https://github.com/BIGslu/tutorials/blob/main/RNAseq/3.Hawn_RNAseq_voom.to.DEG.pdf
+[combat]: https://doi.org/10.1093/nargab/lqaa078
+
