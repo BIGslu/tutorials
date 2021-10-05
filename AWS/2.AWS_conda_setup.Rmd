@@ -103,9 +103,7 @@ sudo curl -O https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh
 ## Compile and install anaconda
 
 ```{bash eval=FALSE}
-sudo bash Anaconda3-2021.05-Linux-x86_64.sh
-### DO NOT save to the default directory. Instead input this one
-### /home/ec2-user/apps/anaconda
+sudo bash Anaconda3-2021.05-Linux-x86_64.sh -b -p /home/ec2-user/apps/anaconda
 
 # Set PATH and initialize
 eval "$(/home/ec2-user/apps/anaconda/bin/conda shell.bash hook)"
