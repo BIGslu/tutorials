@@ -37,3 +37,5 @@ rsconnect/
 
 # MAC
 *.DS_Store
+RNAseq_fastq_pipeline.sh
+RNAseq_pipeline.sh
