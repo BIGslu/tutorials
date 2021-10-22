@@ -477,7 +477,9 @@ genes <- nrow(dat$genes)
 genes.abund <- nrow(dat.abund$genes)
 ```
 
-There is no exact cutoff for this filtering, and you should try several cutoffs to observe the effects. In general, we use minimum CPM from 0.1 - 1, minimum samples around 3 for small data sets, or minimum samples from 5 - 10% in larger data sets. This results in the removal of around 25% of genes. Here, our filtering is on the stricter side, removing `r genes-genes.abund` or `r round((genes-genes.abund)/genes*100, digits=0)`% of genes. 
+There is no exact cutoff for this filtering, and you should try several cutoffs to observe the effects. In general, we use minimum CPM from 0.1 - 1, minimum samples around 3 for small data sets, or minimum samples from 5 - 10% in larger data sets. It is important to keep the minimum sample cutoff larger than your smallest group of interest, otherwise you may filter genes specifically associated with one group.
+
+This filtering generally results in the removal of around 25% of genes. Here, our filtering is on the stricter side, removing `r genes-genes.abund` or `r round((genes-genes.abund)/genes*100, digits=0)`% of genes. 
 
 You may also wish to look for specific genes of interest and ensure they are not being filtered. This following calculates some statistics on filtered genes and saves a `csv` for your perusal.
 
