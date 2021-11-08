@@ -43,6 +43,7 @@ We process RNAseq libraries on a Linux server through AWS. This document is mean
 Files will be organized as follows.
 
 ```{r eval=TRUE, echo=FALSE, message=FALSE}
+#You do not need to run this. See HTML or PDF document for figure.
 library(DiagrammeR)
 grViz(diagram = "digraph flowchart {
   node [fontname = arial, shape = retangle, fontsize=8, height=0.1]

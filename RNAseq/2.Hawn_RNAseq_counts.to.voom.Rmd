@@ -4,14 +4,14 @@ subtitle: "Counts to voom"
 author: "Kim Dill-McFarland, kadm@uw.edu"
 date: "version `r format(Sys.time(), '%B %d, %Y')`"
 output:
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
   html_document:
     toc: yes
     toc_depth: 3
     toc_float:
       collapsed: no
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
 editor_options:
   chunk_output_type: console
 urlcolor: blue
@@ -32,7 +32,7 @@ This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should a
 
 ```{r eval=FALSE}
 #CRAN packages
-install.packages(c("tidyverse", "ggrepel", "scales"))
+install.packages(c("tidyverse", "DiagrammeR", "ggrepel", "scales"))
 
 #Bioconductor packages
 install.packages("BiocManager")
