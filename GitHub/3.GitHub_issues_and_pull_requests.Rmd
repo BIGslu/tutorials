@@ -126,6 +126,6 @@ See the full pull request history at <https://github.com/BIGslu/kimma/pull/10>
 
 # 4. Cleaning up
 
-If you don't plan to make regular contributions to a repo, it's best to delete your `dev` branch or fork. This keeps things from getting cluttered. However, if you're a regular contributor, you can use the branch/fork again for future issues. See the live workshop where I use this same branch to tackle another `kimma` issue. <https://www.youtube.com/playlist?list=PL_Oo8UFoIb03x3g4iVTgY1yMkXO7nqKK->
+If you don't plan to make regular contributions to a repo, it's best to delete your `dev` branch or fork. This keeps things from getting cluttered. However, if you're a regular contributor, you can use the branch/fork again for future issues. See the live workshop where I use this same branch to tackle another `kimma` issue. <https://youtu.be/-u-3Zar2Hew>
 
 ***
