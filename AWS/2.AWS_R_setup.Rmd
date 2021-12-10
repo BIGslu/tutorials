@@ -92,7 +92,7 @@ sudo yum install -y gcc gcc-c++ gcc-gfortran readline-devel \
   zlib-devel bzip2 bzip2-devel xz xz-devel \
   libcurl libcurl.i686 libcurl-devel.x86_64 \
   openssl-devel findutils libffi-devel \
-  libxml2-devel PCRE java
+  libxml2-devel pcre java
   
 sudo yum update -y
 ```
