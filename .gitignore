@@ -39,3 +39,4 @@ rsconnect/
 *.DS_Store
 RNAseq_fastq_pipeline.sh
 RNAseq_pipeline.sh
+AWS/temp_key_data_share.txt
