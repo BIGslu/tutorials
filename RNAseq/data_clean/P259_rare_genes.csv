@@ -1,4 +1,4 @@
-ensembl_gene_id,gene_biotype,hgnc_symbol,mean.CPM,min.CPM,max.CPM,express.in.libs
+ensembl_gene_id,gene_biotype,symbol,mean.CPM,min.CPM,max.CPM,express.in.libs
 ENSG00000000005,protein_coding,,0,0,0,0
 ENSG00000001617,protein_coding,,0.1412010591884064,0,0.9163080847694935,2
 ENSG00000001626,protein_coding,,0.04957025071145703,0,0.49570250711457026,1

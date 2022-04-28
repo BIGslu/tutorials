@@ -227,9 +227,9 @@ This removes `r nrow(meta)-nrow(meta.filter)` libraries. However, you may choose
 
 ## 2.2: Filter non-protein-coding genes
 
-Standard differential expression analyses focus on protein-coding genes as these RNA products are the most likely to result in a measurable phenotype. 
+Standard differential expression analyses focus on protein-coding genes as these RNA products are the most likely to result in a measurable phenotype. We annotate the counts table genes to their biotypes as well as additional identifiers with `biomaRt`.
 
-We annotate the counts table genes to their biotypes as well as additional identifiers with `biomaRt`.
+For human:
 
 ```{r ensembl}
 #Get database
@@ -252,7 +252,33 @@ key.filter <- key %>%
   summarise(entrezgene_id = list(unique(entrezgene_id)), .groups = "drop") %>% 
   group_by(ensembl_gene_id, entrezgene_id, gene_biotype, 
            chromosome_name, start_position, end_position) %>% 
-  summarise(hgnc_symbol = list(unique(hgnc_symbol)), .groups = "drop")
+  summarise(symbol = list(unique(hgnc_symbol)), .groups = "drop")
+```
+
+For mouse (not run here):
+
+```{r ensembl2, eval=FALSE}
+#Get database
+ensembl <- biomaRt::useEnsembl(biomart="ensembl", dataset="mmusculus_gene_ensembl",
+                                mirror = "uswest")
+
+#Format gene key
+key <- biomaRt::getBM(attributes=c("ensembl_gene_id", "entrezgene_id", "mgi_symbol", 
+                                        "gene_biotype", "chromosome_name",
+                                        "start_position", "end_position"), mart=ensembl) %>% 
+  #Filter protein coding genes
+  filter(gene_biotype == "protein_coding")
+
+key.filter <- key %>% 
+  #Filter protein coding genes in count table
+  filter(ensembl_gene_id %in% count$Geneid) %>% 
+  #collapse multiannotations.
+  group_by(ensembl_gene_id, mgi_symbol, gene_biotype, 
+           chromosome_name, start_position, end_position) %>% 
+  summarise(entrezgene_id = list(unique(entrezgene_id)), .groups = "drop") %>% 
+  group_by(ensembl_gene_id, entrezgene_id, gene_biotype, 
+           chromosome_name, start_position, end_position) %>% 
+  summarise(symbol = list(unique(mgi_symbol)), .groups = "drop")
 ```
 
 Then, we filter the count table to genes in the protein-coding key.
@@ -355,7 +381,7 @@ pca3 <- BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter,
 pca3
 ```
 
-You may define outliers at a more or less strict level (`outlier_sd`) or wish to determine them separately within each group of interest (`outlier_group`). For example here, there is one outlier more than 1.5 sd away from the mean within batch.
+You may define outliers at a more or less strict level (`outlier_sd`) or wish to determine them separately within each group of interest (`outlier_group`). For example here, there is one outlier more than 1.5 sd away from the mean within batch but this cutoff is much stricter than we recommend.
 
 ```{r PCA4}
 BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter, 
@@ -482,8 +508,8 @@ rare <- as.data.frame(cpm(dat$counts)) %>%
   left_join(dat$genes, by = "ensembl_gene_id") %>% 
   #format
   select(-c(chromosome_name:end_position)) %>%
-  pivot_longer(-c(ensembl_gene_id, gene_biotype, hgnc_symbol, entrezgene_id)) %>% 
-  group_by(ensembl_gene_id, gene_biotype, hgnc_symbol) %>% 
+  pivot_longer(-c(ensembl_gene_id, gene_biotype, symbol, entrezgene_id)) %>% 
+  group_by(ensembl_gene_id, gene_biotype, symbol) %>% 
   summarise(mean.CPM = mean(value, na.rm=TRUE),
             min.CPM = min(value, na.rm=TRUE),
             max.CPM = max(value, na.rm=TRUE),
