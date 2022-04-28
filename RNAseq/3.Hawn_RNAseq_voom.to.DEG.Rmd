@@ -40,14 +40,16 @@ BiocManager::install(c("edgeR", "limma", "patchwork"))
 
 #GitHub packages
 install.packages("devtools")
-devtools::install_github("BIGslu/BIGverse", force=TRUE)
+devtools::install_github("BIGslu/BIGpicture", force=TRUE)
+devtools::install_github("BIGslu/kimma", force=TRUE)
 ```
 
 And load them into your current R session.
 
 ```{r warning=FALSE}
 library(tidyverse)
-library(BIGverse)
+library(kimma)
+library(BIGpicture)
 library(limma)
 library(edgeR)
 library(patchwork)
@@ -87,9 +89,11 @@ All of the data needed are contained in a single `Rdata` object in `data_clean/`
 
 ## Example data
 
-Example data were obtained from virus-stimulated human plasmacytoid dendritic cells (pDC). For full methods, see Dill-McFarland *et al*. 2021. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. In revision [GitHub](https://github.com/altman-lab/P259_pDC_public). Some patient identifiers and metadata have been altered for this tutorial. Of note, these data were obtained from the same data set as the `kimma` package.
+Example data were obtained from virus-stimulated human plasmacytoid dendritic cells. Actual patient identifiers and metadata have been altered for this tutorial.
 
-Specifically, this tutorial uses data processed using our [fastq to counts][pipeline1] and [counts to voom][pipeline2] pipelines, resulting in voom-normalized, log2 counts per million (CPM) expression and associated sample metadata in a `limma EList` object in the `data_clean/` directory.
+>Dill-McFarland KA, Schwartz JT, Zhao H, Shao B, Fulkerson PC, Altman MC, Gill MA. 2022. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. Epub ahead of print. doi: [10.1016/j.jaci.2022.03.025](https://doi.org/10.1016/j.jaci.2022.03.025). --- [GitHub](https://github.com/altman-lab/P259_pDC_public)
+
+Specifically, this tutorial uses data processed using our [SEAsnake][pipeline1] and [counts to voom][pipeline2] pipelines, resulting in voom-normalized, log2 counts per million (CPM) expression and associated sample metadata in a `limma EList` object in the `data_clean/` directory.
 
 # 1. Load data
 
@@ -122,7 +126,7 @@ dat$genes[1:3,1:4]
 
 There are a couple other data frames in our `dat` object, but they are not relevant to this tutorial.
 
-Additionally, models can take a couple minutes to run. You can load all model results for this tutorial.
+Additionally, models take a couple minutes to run. You can load all model results for this tutorial.
 
 ```{r}
 load("results/model_results.RData")
@@ -150,9 +154,11 @@ virus <- kmFit(dat = dat, model = "~ virus", run.lm = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lm model: expression~ virus
-12830 genes complete
+lm model: expression~virus
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
 We see that numerous genes are significant for `virus`. However, this is not the best model for these data since we have other factors that may impact expression.
@@ -192,79 +198,69 @@ virus_interact <- kmFit(dat = dat, model = "~ virus*asthma", run.lm = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lm model: expression~ virus*asthma
-12830 genes complete
+lm model: expression~virus*asthma
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
-We now see 3 variables in our results equivalent to the variables in the long form of our model equation. Notice that we've lost significance for `virus`, and the lowest FDR cutoff for any significance is 0.2. Because this data set is small, an interaction model may be too complex, and we may not have the power to see interaction effects.
+We now see 3 variables in our results equivalent to the variables in the long form of our model equation. Notice that we've lost significance for a lot of genes in `virus` and not found any genes at FDR < 0.05 for asthma or the interaction term. Because this data set is small, an interaction model is likely too complex, and we do not appear to have the power to detect interaction effects.
 
 ```{r}
 summarise_kmFit(fdr = virus_interact$lm)
 ```
 
-Importantly, a gene with a significant interaction term cannot be assessed for the main effects. For example, there is 1 gene here that is significant for the interaction (blue) and the asthma main term (green). However, we *cannot* use this asthma result, because it is comparing all healthy to all asthma samples without taking virus into account. Since we know there is an interaction effect for this gene, the asthma comparison alone is incorrectly averaging across samples we know to be different (none vs HRV).
+Importantly, a gene with a significant interaction term cannot be assessed for the main effects. For example at a high FDR of 0.3, there are 3 genes here that is significant for the interaction (blue) and the virus (red) and/or asthma (green) main terms. However, we *cannot* use the asthma results for these genes, because they are comparing all healthy to all asthma samples without taking virus into account. Since we know there is an interaction effect for these genes, the asthma comparison alone is incorrectly averaging across samples we know to be different (none vs HRV). Similarly, we cannot use the virus results. 
 
 ```{r fig.height=4}
-plot_venn_genes(model_result = virus_interact, model = "lm", fdr.cutoff = 0.2)
+plot_venn_genes(model_result = virus_interact, model = "lm", fdr.cutoff = 0.3)
 ```
 
 If this were our final model, our DEG list would be all interaction genes (blue) as well as the intersect of virus and asthma main terms (red-green). This second group encompasses genes that change with virus similarly in healthy and asthma donors but are always higher in one asthma group.
- 
+
 ### Pairwise contrasts
 
-Another way to model interactions is with pairwise contrasts. This means that instead of including the `virus:asthma` term, you create a new term that includes both variables like `virus_asthma`. You then model that term and select the pairwise comparisons that are meaningful between your groups.
-
-```
-~ virus_asthma
-```
-
-First, we create our new combined variables in the metadata.
-
-```{r}
-dat$targets <- dat$targets %>% 
-  rowwise() %>% 
-  mutate(virus_asthma = paste(virus, asthma, sep="_")) %>% 
-  #set reference level for new variable
-  mutate(virus_asthma = fct_reorder(factor(virus_asthma), "none_healthy"))
-```
-
-Then we run the model and specify that we also want to run contrasts.
+Another way to model interactions is with pairwise contrasts. Contrasts compare 2 or more groups to all other groups in that variable. For example, we're interested in the 4 groups within the interaction term: `none_healthy`, `none_asthma`, `HRV_healthy`, `HRV_asthma`. We run these comparisons with the same interaction model as above, only now we also set `run.contrast = TRUE`. We will get pairwise comparisons that we're not interested in since all combinations are run but will filter those of interest later on.
 
 ```{r eval=FALSE}
-virus_contrast <- kmFit(dat = dat, model = "~ virus_asthma", 
-                        run.lm = TRUE, run.contrast = TRUE)
+virus_contrast <- kmFit(dat = dat, model = "~ virus*asthma", 
+                        run.lm = TRUE, 
+                        run.contrast = TRUE, contrast.var = "virus:asthma")
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lm model: expression~ virus_asthma
-12830 genes complete
+lm model: expression~virus*asthma
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
-We now see 3 different variables in our model results. These represent each of the groups compared to the reference level we set, 'none_healthy'.
+We see the same main model outcome as before.
 
 ```{r}
 summarise_kmFit(fdr = virus_contrast$lm)
 ```
 
-We also get all pairwise contrasts between the 4 groups. The names are cutoff but our contrasts are `r unique(virus_contrast$lm.contrast$contrast)``
+We also get all pairwise contrasts between the 4 groups.
 
 ```{r}
-summarise_kmFit(fdr = virus_contrast$lm.contrast, contrast = TRUE)
+summarise_kmFit(fdr = virus_contrast$lm.contrast)
 ```
 
-Not all of these contrasts are of interest, so we select just the effects of virus (red, yellow) and asthma (green, blue). We see that many genes change with virus in the asthma group (red) and a couple are different between health and asthma donors in the presence of virus (blue). The lack of significant genes in healthy donors (yellow) or uninfected samples (green) is an artefact of this small data set with only 2 - 3 donors per group. In a real analysis, you may be interested in genes that only change with virus in one group (red and yellow no overlap) or those that change with virus (red or yellow) and are different with asthma (green or blue).
- 
+Not all of these contrasts are of interest, so we select just the effects of virus (red, yellow) and asthma (green, blue). We see that many genes change with virus in the asthma (blue) and/or healthy (green) groups. Only 2 genes differ between healthy and asthma either with (yellow) or without virus (red). The lack of significant genes in the left ovals is an artifact of this small data set with only 2 - 3 donors per group. In a real analysis, you may be interested in genes that only change with virus in one group (green and blue not overlapping) or those that change with virus (green and/or blue) AND are different with asthma (red and/or yellow).
+
 ```{r fig.height=4}
 plot_venn_genes(model_result = virus_contrast, model = "lm.contrast",
                 fdr.cutoff = 0.2,
-                contrasts = c("HRV_asthma - none_asthma",
-                              "HRV_healthy - none_healthy",
-                              "none_asthma - none_healthy",
-                              "HRV_asthma - HRV_healthy"))
+                contrasts = data.frame(
+                  contrast_ref = c("none asthma","HRV asthma",
+                                   "none healthy","none asthma"),
+                  contrast_lvl = c("none healthy","HRV healthy",
+                                   "HRV healthy","HRV asthma")))
 ```
- 
+
 ### When to use interaction vs contrasts
 
 At their heart, interaction and contrast models are trying to answer the same question. However, statistically, they are very different. Contrasts compare means between groups (see below) and you must select which pairwise comparisons are meaningful.
@@ -323,57 +319,79 @@ plot_pca(dat, vars = c("sex","batch")) %>%
   wrap_plots(ncol=2)
 ```
 
-We see some grouping by batch; thus, we have evidence to include batch in the model despite the fact that these data we batch-corrected using `ComBat-Seq`. This is not uncommon with batch correction as we err on the side of under-correcting by batch to retain true biological variation. In contrast, sex does not show any groupings and may not be needed. PCA alone, however, is not enough to determine what co-variates need to be in our models.
+We see grouping by batch; thus, we have evidence to include batch in the model despite the fact that these data were batch-corrected using `ComBat-Seq`. This is not uncommon with batch correction as we err on the side of under-correcting by batch to retain true biological variation. Plus, we did a very poor-correction based on only 2 genes in the [previous tutorial][pipeline2] in order to keep computation time down.
 
-Next, we run the models with and without co-variates for comparison. To include co-variates, we add them to the models with `+`. 
+In contrast, sex does not show any groupings and may not be needed. PCA alone, however, is not enough to determine what co-variates need to be in our models.
+
+Next, we run the models with and without co-variates for comparison. To include co-variates, we add them to the models with `+`. We also set `metrics = TRUE` so that `kimma` gives us model fit metrics for comparison.
 
 ```{r eval=FALSE}
-virus_batch <- kmFit(dat = dat, model = "~ virus*asthma + batch", run.lm = TRUE)
+virus_interact <- kmFit(dat = dat, model = "~ virus*asthma", 
+                        run.lm = TRUE, metrics = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lm model: expression~ virus*asthma + batch
-12830 genes complete
+lm model: expression~virus*asthma
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
+```
+
+```{r eval=FALSE}
+virus_batch <- kmFit(dat = dat, model = "~ virus*asthma + batch", 
+                     run.lm = TRUE, metrics = TRUE)
+```
+
+```
+lm model: expression~virus*asthma+batch
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
 ```{r eval=FALSE}
 virus_batch_sex <- kmFit(dat = dat, model = "~ virus*asthma + batch + sex", 
-                         run.lm = TRUE)
+                         run.lm = TRUE, metrics = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lm model: expression~ virus*asthma + batch + sex
-12830 genes complete
+lm model: expression~virus*asthma+batch+sex
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
-We compare model fits with sigma, the mean of residuals for each gene. Smaller sigmas indicate a better fitting model so genes below the 1:1 line are better fit by the y-axis model (red). Those above the line are better fit by the x-axis model (teal).  Throughout this tutorial, we put the more complex model as y. Our plotting function also outputs a message with how many genes are best fit by each model.
+We compare model fits with AIC, which summarize model fit. For more information, see <https://en.wikipedia.org/wiki/Akaike_information_criterion>. In general, a difference in AIC < 2 is considered no evidence of better fit, 2 - 8 is moderate evidence, and > 8 is strong evidence. There are additional metrics also available in `kimma` including BIC, sigma, and R-squared.
+
+Smaller AIC indicate a better fitting model so genes below the 1:1 line are better fit by the y-axis model (red). Those above the line are better fit by the x-axis model (teal). Throughout this tutorial, we put the more complex model as y. Our plotting function also outputs a message with how many genes are best fit by each model and mean and standard deviation of the difference in AIC between the two models.
 
 ```{r}
-plot_sigma(model_result = virus_interact, model_result_y = virus_batch,
-           x="lm", y="lm") + 
+plot_fit(model_result = virus_interact, model_result_y = virus_batch,
+         x="lm", y="lm", metrics = "AIC") + 
   labs(x = "virus*asthma", y = "virus*asthma + batch")
 
-plot_sigma(model_result = virus_batch, model_result_y = virus_batch_sex,
-           x="lm", y="lm") + 
+plot_fit(model_result = virus_batch, model_result_y = virus_batch_sex,
+         x="lm", y="lm", metrics = "AIC") + 
   labs(x = "virus*asthma + batch", y = "virus*asthma + batch + sex")
 ```
 
-We see that each model is the best fit for a subset of genes. In the first plot, batch improves the model fit for just over half of genes, and this improvement is substantial for some genes (*e.g.* red dots far from the 1:1 line). In the second plot, sex further improves the fit for roughly a third of genes.
+We see that each model is the best fit for a subset of genes. In the first plot, batch improves the model fit for just over half of genes, and this improvement is substantial for some genes (*e.g.* red dots far from the 1:1 line and mean $\Delta$ AIC = 6.5). In the second plot, sex further improves the fit for roughly 40% of genes but to a lesser extent (mean $\Delta$ AIC = 4.7).
 
 Next, we compare how many genes are significant with and without co-variates. We arbitrarily select a high FDR cutoff of 0.2 though you may wish to look at a couple.
 
 ```{r fig.height=4}
 plot_venn_genes(model_result = virus_interact, model = "lm",
                 fdr.cutoff = 0.2) +
-plot_venn_genes(model_result = virus_batch, model = "lm",
-                fdr.cutoff = 0.2) +
-plot_venn_genes(model_result = virus_batch_sex, model = "lm",
-                fdr.cutoff = 0.2)
+  plot_venn_genes(model_result = virus_batch, model = "lm",
+                  fdr.cutoff = 0.2) +
+  plot_venn_genes(model_result = virus_batch_sex, model = "lm",
+                  fdr.cutoff = 0.2)
 ```
 
-First, consider how many genes are significant for the co-variates themselves. Batch is significant for many genes while sex is not significant for any. Next, compare the number of virus-significant genes. Adding batch and/or sex to the model decreases the number of virus (red) as well as interaction significant genes (blue). The dramatic decrease in virus genes is likely evidence that we do not have enough power to support the co-variate model complexity (*e.g.* too few samples relative to the number of variables). Given the size of this data set (N = 5), this is not surprising. 
+First, consider how many genes are significant for the co-variates themselves. Batch is significant for many genes while sex is significant for only 2. Next, compare the number of virus-significant genes. Adding batch and/or sex to the model decreases the number of virus (red) by a lot (162 vs 4 or 10). The dramatic decrease in virus genes is likely evidence that we do not have enough power to support the co-variate model complexity (*e.g.* too few samples relative to the number of variables). Given the size of this data set (N = 10), this is not surprising. 
 
 To summarize:
 
@@ -388,7 +406,7 @@ To summarize:
 
 * Does not impact overall gene expression in PCA
 * Improves model fit for a minority of genes
-* Not significant for any genes
+* Significant for a few genes
 * Decreases the number of virus-significant genes
 
 If it weren't for the impacts on virus genes, we would have clear evidence to include batch and exclude sex from the model. However, given the size of this data set and evidence that even 1 co-variate cannot be supported, we will not include any at this time.
@@ -399,7 +417,7 @@ If it weren't for the impacts on virus genes, we would have clear evidence to in
 
 In your data, you may have co-variates that are not as clear as these. In that case, it's important to prioritize model fit and sample size over significant gene counts. You should not include or exclude a co-variate just because it gets you more significant genes for your main terms. This is especially true if the co-variate negatively impacts model fit. 
 
-You may also have non-statistical evidence for including a co-variate. If you have established biological evidence that a co-variate is important in your system or it's standard in your field, you may wish to include it even if it does not improve fit and is not significant. If the co-variate, however, greatly worsens fit, you should not include it even if it's standard. Instead, present the sigma plots to support its exclusion.
+You may also have non-statistical evidence for including a co-variate. If you have established biological evidence that a co-variate is important in your system or it's standard in your field, you may wish to include it even if it does not improve fit and is not significant. If the co-variate, however, greatly worsens fit, you should not include it even if it's standard. Instead, present fit plots like above to support its exclusion.
 
 # 3. Linear mixed effects model
 ## 3.1: Random effects (ptID)
@@ -429,30 +447,33 @@ Random effects are added to the model with `+ (1|block)` where the block is the 
 In `kimma`, this is run similarly to a simple model except we add our random term and ask it to `run.lme`.
 
 ```{r eval=FALSE}
-virus_lme <- kmFit(dat = dat, model = "~ virus*asthma + (1|ptID)", run.lme = TRUE)
+virus_lme <- kmFit(dat = dat, model = "~ virus*asthma + (1|ptID)", 
+                   run.lme = TRUE, metrics = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lme/lmekin model: expression~virus*asthma+(1|ptID)
-12830 genes complete
+lme/lmerel model: expression~virus*asthma+(1|ptID)
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
-Note, we could run both models at once in `kmFit` if we set `run.lm=TRUE, run.lme=TRUE`. Since we already ran the simple linear model, we'll skip that here.
+Note, we could run both models at once in `kmFit` if we set `run.lm=TRUE` and `run.lme=TRUE`. This is helpful when you know you want to compare multiple models from the start. Since we already ran the simple linear model, we'll skip that here.
 
-Comparing models as we did with co-variates, we see that adding the random effect improved the model fit for the majority of genes (> 80%) and increased the number of virus-significant and interaction DEG. Note there is also a 'none' category where both models had the same fit (sigma). This illustrates the much improved power of a mixed effects model when you have paired samples. 
+Comparing models as we did with co-variates, we see that genes are split by best fit to a similar degree (mean $\Delta$ AIC ~5) for both models. However, we see many more significant genes in the model with the random effect. This illustrates the much improved power of a mixed effects model when you have paired samples. 
 
 ```{r}
-plot_sigma(model_result = virus_interact, model_result_y = virus_lme,
-           x="lm", y="lme") + 
+plot_fit(model_result = virus_interact, model_result_y = virus_lme,
+         x="lm", y="lme", metrics = "AIC") + 
   labs(x = "virus*asthma", y = "virus*asthma + (1|ptID)")
 ```
 
 ```{r fig.height=4}
 plot_venn_genes(model_result = virus_interact, model = "lm",
                 fdr.cutoff = 0.2) +
-plot_venn_genes(model_result = virus_lme, model = "lme",
-                fdr.cutoff = 0.2) 
+  plot_venn_genes(model_result = virus_lme, model = "lme",
+                  fdr.cutoff = 0.2) 
 ```
 
 ### Comparison to `limma`
@@ -461,26 +482,26 @@ plot_venn_genes(model_result = virus_lme, model = "lme",
 
 In our analyses, we've found `limma` and `kimma` results to be similar when the sample size or variable effects are large. In the case of small data sets or small effects, however, there can be a dramatic difference.
 
-For example, we run a `limma` model for these data.
+For example, we run a `limma` model with pseduo paired design for these data.
 
 ```{r}
 mm_limma <- model.matrix(~ virus*asthma, data=dat$targets)
 
 #Block by donor
 consensus.corr <- duplicateCorrelation(dat$E, mm_limma,
-                      block=dat$targets$ptID)$consensus.correlation
+                                       block=dat$targets$ptID)$consensus.correlation
 consensus.corr
 
 # Fit model to transformed count data. Calculate eBayes
 fit_limma <- eBayes(lmFit(dat$E, mm_limma,
-                                  block=dat$targets$ptID,
-                                  correlation=consensus.corr))
+                          block=dat$targets$ptID,
+                          correlation=consensus.corr))
 
 #Extract pval
 virus_limma <- extract_lmFit(design = mm_limma, fit = fit_limma)
 ```
 
-We see that not taking the paired sample design into account results in few DEG. Using duplicate correlation in `limma` gains some but `kimma`'s full mixed effects model best detects signal across all variables.
+We see that not taking the paired sample design into account results in few DEG (first table). Using duplicate correlation in `limma` gains some (second table) but `kimma`'s full mixed effects model best detects signal across all variables (third table).
 
 ```{r}
 # ~ virus*asthma in kimma
@@ -497,52 +518,59 @@ Given the large changes with a mixed effect model, let's re-consider batch and s
 
 ```{r eval=FALSE}
 virus_batch_lme <- kmFit(dat = dat, model = "~ virus*asthma + batch + (1|ptID)",
-                         run.lme = TRUE)
+                         run.lme = TRUE, metrics = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lme/lmekin model: expression~virus*asthma+batch+(1|ptID)
-12830 genes complete
+lme/lmerel model: expression~virus*asthma+batch+(1|ptID)
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
 ```{r eval=FALSE}
 virus_batch_sex_lme <- kmFit(dat = dat, 
                              model = "~ virus*asthma + batch + sex + (1|ptID)",
-                             run.lme = TRUE)
+                             run.lme = TRUE, metrics = TRUE)
 ```
 
 ```
-Running models on 5 individuals. No kinship provided.
-lme/lmekin model: expression~virus*asthma+batch+sex+(1|ptID)
-12830 genes complete
+lme/lmerel model: expression~virus*asthma+batch+sex+(1|ptID)
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
-We see no clear evidence to keep co-variates based on model fit since genes are split for best fit model.
+We see no clear evidence to keep co-variates based on model fit since genes are split for best fit model and mean $\Delta$ AIC is low from 1 to 3.
 
 ```{r}
-plot_sigma(model_result = virus_lme, model_result_y = virus_batch_lme,
-           x="lme", y="lme") + 
+plot_fit(model_result = virus_lme, model_result_y = virus_batch_lme,
+         x="lme", y="lme", metrics="AIC") + 
   labs(x = "virus*asthma + (1|ptID)", y = "virus*asthma + batch + (1|ptID)")
 
-plot_sigma(model_result = virus_batch_lme, model_result_y = virus_batch_sex_lme,
-           x="lme", y="lme") + 
+plot_fit(model_result = virus_batch_lme, model_result_y = virus_batch_sex_lme,
+         x="lme", y="lme", metrics="AIC") + 
   labs(x = "virus*asthma + batch + (1|ptID)", 
        y = "virus*asthma + batch + sex + (1|ptID)")
 ```
 
-Both co-variates increase the number of virus-significant genes and are themselves significant for a number of genes. Here, we use a much lower FDR cutoff so the values are easier to see.
+Both co-variates increase the number of virus-significant genes and are themselves significant for a number of genes. Here, we use a much lower FDR cutoff of 0.0001 so the values are easier to see.
 
 ```{r fig.height=4}
 plot_venn_genes(model_result = virus_lme, model = "lme",
-                fdr.cutoff = 0.001) +
-plot_venn_genes(model_result = virus_batch_lme, model = "lme",
-                fdr.cutoff = 0.001) +
-plot_venn_genes(model_result = virus_batch_sex_lme, model = "lme",
-                fdr.cutoff = 0.001)
+                fdr.cutoff = 0.0001, 
+                variables = c("virus","ashtma","virus:asthma")) +
+  plot_venn_genes(model_result = virus_batch_lme, model = "lme",
+                  fdr.cutoff = 0.0001,
+                  variables = c("virus","ashtma","virus:asthma", "batch")) +
+  plot_venn_genes(model_result = virus_batch_sex_lme, model = "lme",
+                  fdr.cutoff = 0.0001,
+                  variables = c("virus","ashtma","virus:asthma","batch","sex"))
 ```
 
-Importantly, some of the interaction genes (our main variable of interest) are significant for co-variates. This is further evidence to keep co-variates since they appear to play a role in the DEG we'll focus on in our results. The being said, the co-variates do not dramatically improve model fit and you could argue to remove them. So, this is a case where there is no clear right answer. As long as you understand the potential impacts on your results, you could continue your analyses with any of these 3 mixed effects models.
+Importantly, some of the interaction genes (our main variable of interest) are significant for co-variates. This is further evidence to keep co-variates since they appear to play a role in the genes we'll focus on in our results. The being said, the co-variates do not improve model fit and you could argue to remove them. So, this is a case where there is no clear right answer. As long as you understand the potential impacts on your results, you could continue your analyses with any of these 3 mixed effects models.
 
 For simplicity, we'll move forward without any co-variates.
 
@@ -562,88 +590,94 @@ kin
 
 Because it is not a single value per sample or individual, kinship cannot be added to a model with `+ kin`. Instead, it is used as a random effect where you block by individual so the model can identify an individual's kinship values relative to all other individuals in the data set.
 
-`kimma` incorporates the `coxme` package's function `lmekin` to use kinship in linear mixed effects models. This feature is why `kimma` exists since pairwise kinship cannot be used in `limma`.
+`kimma` incorporates the `lme4qtl` package's function `relmatLmer` to use kinship in linear mixed effects models. This feature is why `kimma` exists since pairwise kinship cannot be used in `limma`. We fit this type of model with `run.lmerel = TRUE` providing the kinship matrix.
 
 ```{r eval=FALSE}
 virus_kin <- kmFit(dat = dat, kin = kin, 
                    model = "~ virus*asthma + (1|ptID)",
-                   run.lmekin = TRUE)
+                   run.lmerel = TRUE, metrics = TRUE)
 ```
 
 ```
-Running models on 5 individuals. 0 individuals missing kinship data.
-lme/lmekin model: expression~virus*asthma+(1|ptID)
-12830 genes complete
+lme/lmerel model: expression~virus*asthma+(1|ptID)
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 13301 genes
+Failed: 0 genes
 ```
 
-We see that kinship improves model fit for the majority of genes (> 95%) as well as increases the number of interaction significant genes.
+We see that kinship does not improve model fit with very small $\Delta$ < 1 and even some genes with identical AIC for both models (Best fit = none). We also see kinship has very little impact on DEG detection. Of note, this is not surprising as the example kinship data is made up and does not reflex the actual relatedness of these patients. 
 
 ```{r}
-plot_sigma(model_result = virus_lme, model_result_y = virus_kin,
-           x="lme", y="lmekin") + 
+plot_fit(model_result = virus_lme, model_result_y = virus_kin,
+         x="lme", y="lmerel", metrics = "AIC") + 
   labs(x = "virus*asthma + (1|ptID)", y = "virus*asthma + (1|ptID) + kin")
 ```
 
 ```{r fig.height=4}
 plot_venn_genes(model_result = virus_lme, model = "lme",
                 fdr.cutoff = 0.001) +
-plot_venn_genes(model_result = virus_kin, model = "lmekin",
-                fdr.cutoff = 0.001) 
+  plot_venn_genes(model_result = virus_kin, model = "lmerel",
+                  fdr.cutoff = 0.001) 
 ```
 
-Thus, we consider our final best fit model to be
+Thus, we consider our final best fit model to be the previously linear mixed effects model without kinship or co-variates.
 
 ```
-~ virus*asthma + (1|ptID) with kinship
+~ virus*asthma + (1|ptID)
 ```
 
 # 4. Post-hoc pairwise contrasts
 
 If you have an interaction term in your model, you may wish to further probe the results to determine how the interaction is significant. Do healthy donors increase expression in response to virus while those with asthma show no change? Or does everyone decrease in expression but those with asthma decrease more? And other potential outcomes.
 
-We will only run contrasts on genes that were significant for the interaction term. First, we select interaction DEG at FDR < 0.05.
+Similar to the unpaired model in section 2.2, we can do with for the mixed effects model with `run.contrasts = TRUE`. Here, though, we will only run contrasts on genes that were significant for the interaction term. First, we select interaction DEG at FDR < 0.05.
 
 ```{r}
-subset.genes <- virus_kin$lmekin %>% 
-  filter(variable == "virusHRV:asthmahealthy" & FDR < 0.05) %>% 
-  distinct(gene) %>% unlist(use.names = FALSE)
+subset.genes <- virus_lme$lme %>% 
+  filter(variable == "virus:asthma" & FDR < 0.05) %>% 
+  pull(gene)
 ```
 
 And then run the contrast model on these genes.
 
 ```{r eval=FALSE}
-virus_contrast_kin <- kmFit(dat = dat, kin = kin, 
-                        model = "~ virus*asthma + (1|ptID)",
-                        run.lmekin = TRUE, run.contrast = TRUE,
-                        contrast.var = "virus:asthma",
-                        subset.genes = subset.genes)
+virus_contrast_signif <- kmFit(dat = dat, 
+                               model = "~ virus*asthma + (1|ptID)",
+                               run.lme = TRUE, run.contrast = TRUE,
+                               contrast.var = "virus:asthma",
+                               subset.genes = subset.genes)
 ```
 
 ```
-Running models on 5 individuals. 0 individuals missing kinship data.
-lme/lmekin model: expression~virus*asthma+(1|ptID)
-1403 genes complete
+lme/lmerel model: expression~virus*asthma+(1|ptID)
+Input: 10 libraries from 5 unique patients
+Model: 10 libraries
+Complete: 839 genes
+Failed: 0 genes
 ```
 
-We see that a number of genes are only change significantly with virus in healthy or asthma individuals (left) and that some genes differ with asthma in the presence and/or absence of virus (right). The other two contrasts are not of interest in this analysis since they represent comparisons across both variables.
+We see that a number of genes only change significantly with virus in healthy or asthma individuals (right) and that some genes differ with asthma in the presence and/or absence of virus (left). The other two contrasts are not of interest in this analysis since they represent comparisons across both variables.
 
 ```{r fig.height=4}
-plot_venn_genes(model_result = virus_contrast_kin, model = "lmekin.contrast",
-                fdr.cutoff = 0.05, contrasts=c("HRV_asthma - none_asthma",
-                                               "HRV_healthy - none_healthy")) +
-  plot_venn_genes(model_result = virus_contrast_kin, model = "lmekin.contrast",
-                fdr.cutoff = 0.05, contrasts=c("none_asthma - none_healthy",
-                                               "HRV_asthma - HRV_healthy")) 
+plot_venn_genes(model_result = virus_contrast_signif,
+                model = "lme.contrast",
+                fdr.cutoff = 0.05, 
+                contrasts=data.frame(
+                  contrast_ref = c("none asthma","HRV asthma",
+                                   "none healthy","none asthma"),
+                  contrast_lvl = c("none healthy","HRV healthy",
+                                   "HRV healthy","HRV asthma")))
 ```
 
 As noted in section 2.2, you may have instead chosen to use a contrast model for all genes and thus, would not need this redundant post-hoc test.
 
 # 5. Visualize DEG
 
-`BIGpicture` provides a function to plot expression for genes of interest across many variables. For example, we plot the first interaction significant gene.
+`BIGpicture` provides a function to plot expression for genes of interest across many variables. For example, we plot an interaction significant gene. Each circle is a RNA-seq library colored by donor. The black squares are overall group means and boxplots are standard interquartile ranges.
 
 ```{r fig.height=9}
-plot_genes(dat = dat, fdr = virus_kin$lmekin, subset.genes=subset.genes[1],
+plot_genes(dat = dat, fdr = virus_lme$lme, subset.genes=subset.genes[1],
            variables = "virus*asthma", geneID = "ensembl_gene_id",
            colorID="ptID")
 ```
@@ -653,84 +687,95 @@ If you want custom ordering within variables, you need to create factors of the 
 ```{r fig.width=5}
 dat$targets <- dat$targets %>% 
   mutate(interaction = paste(virus, asthma, sep="\n"),
-         interaction = factor(interaction, levels=c("none\nhealthy","none\nasthma",
-                                                    "HRV\nhealthy","HRV\nasthma")))
+         interaction = factor(interaction,
+                              levels=c("none\nhealthy","none\nasthma",
+                                       "HRV\nhealthy","HRV\nasthma")))
 
 plot_genes(dat = dat, subset.genes=subset.genes[1],
-           variables = "interaction", geneID = "ensembl_gene_id",
+           variables = "interaction", 
+           geneID = "ensembl_gene_id",
            colorID="ptID")
 ```
 
 # 6. An actual analysis
 
-This tutorial is meant to walk you through the majority of experimental designs you will encounter in RNAseq analysis. But you do not need to run all these models on an actual data set. For these example data, here is the actual pipeline I would take to select a best fit model.
+This tutorial is meant to walk you through the majority of experimental designs you will encounter in RNAseq analysis. But you do not need to run all these models on an actual data set. For these example data, here is the actual pipeline I would take to select a best fit model for these data.
 
-1. What are the main variables of interest? Is an interaction necessary?
-    - Yes -> I start with `~ virus*asthma`
-2. Are the data from a paired sample design?
-    - Yes -> I need a mixed effects model `~ virus*asthma + (1|ptID)`
-3. Are there potential co-variates? Is one of them kinship?
-    - Yes -> My most complicated model is `~ virus*asthma + batch + sex + (1|ptID) + kin`
-4. Compare more complex models to the simplest version in #2
-    - a. Add kinship `~ virus*asthma + (1|ptID) + kin`. I determine that it improves model fit enough to be included
-    - b. Add co-variates `~ virus*asthma + batch + sex + (1|ptID) + kin`. I determine that sex should not be included but batch might.
-    - c. Remove sex `~ virus*asthma + batch + (1|ptID) + kin`. I determine that batch does not improve the model fit enough to be included.
-    - Note that the exclusion of co-variates was heavily influenced by the small data set size and a desire to use the simplest model possible
-5. Run contrasts on interaction significant genes from best model (4a)
+1. What are the main variables of interest? 
+    - `virus` and `asthma`
+2. Is an interaction necessary?
+    - Yes, so my starting model is `~ virus*asthma`
+3. Are the data from a paired sample design?
+    - Yes, so I need a mixed effects model `~ virus*asthma + (1|ptID)`. I run this model for comparison to those in #4 and #5.
+4. Are there potential co-variates? 
+    - Yes, so my most complicated model would be `~ virus*asthma + batch + sex + (1|ptID)`
+5. Is kinship available and of interest?
+    - No, so we don't add it to the #4 model.
+6. Compare more complex models to the version in #3 as that is the most simple with all main variables and the correct paired sample design.
+    - a. `~ virus*asthma + batch + (1|ptID)`. I determine that batch does not improve the model fit enough to be included.
+    - b. Remove sex `~ virus*asthma + sex + (1|ptID)`. I determine that sex should not be included as it does not improve the fit.
+    - Note that the exclusion of co-variates was also influenced by the small data set size and a desire to use the simplest model possible
+    - Also if kinship had been important, I would check that fit before adding co-variates.
+7. Run contrasts on interaction significant genes from best model (which ends up being #3)
 
 ```{r eval=FALSE}
-#4a 
-virus_kin <- kmFit(dat = dat, kin = kin, 
-                   model = "~ virus*asthma + (1|ptID)",
-                   run.lme = TRUE, run.lmekin = TRUE)
-
-plot_sigma(model_result = virus_kin, x="lme", y="lmekin")
-
-# I don't both with venns since the improvement in fit is substantial
-
-#4b 
-plot_pca(dat, vars = c("sex","batch")) %>% 
-  wrap_plots(ncol=2)
-
-virus_kin_batch_sex <- kmFit(dat = dat, kin = kin, 
-                   model = "~ virus*asthma + batch + sex + (1|ptID)",
-                   run.lmekin = TRUE)
-
-plot_sigma(model_result = virus_kin, model_result_y = virus_kin_batch_sex,
-           x="lmekin", y="lmekin")
-
-plot_venn_genes(model_result = virus_kin, model = "lmekin",
-                fdr.cutoff = c(0.05)) +
-plot_venn_genes(model_result = virus_kin_batch_sex, model = "lmekin",
-                fdr.cutoff = c(0.05))
-
-#4c
-virus_kin_batch <- kmFit(dat = dat, kin = kin, 
-                   model = "~ virus*asthma + batch + (1|ptID)",
-                   run.lmekin = TRUE)
-
-plot_sigma(model_result = virus_kin, model_result_y = virus_kin_batch,
-           x="lmekin", y="lmekin")
-
-plot_venn_genes(model_result = virus_kin, model = "lmekin",
-                fdr.cutoff = c(0.05)) +
-plot_venn_genes(model_result = virus_kin_batch, model = "lmekin",
-                fdr.cutoff = c(0.05))
-
-#5
-subset.genes <- virus_kin$lmekin %>% 
-  filter(variable == "virusHRV:asthmahealthy" & FDR < 0.05) %>% 
-  distinct(gene) %>% unlist(use.names = FALSE)
-
-contrast_model <- kmFit(dat = dat, kin = kin, 
+#3
+## Run base model
+virus_interact <- kmFit(dat = dat, 
                         model = "~ virus*asthma + (1|ptID)",
-                        run.lmekin = TRUE, run.contrast = TRUE,
+                        run.lme = TRUE, metrics = TRUE)
+
+#6a
+## Explore co-variate batch
+plot_pca(dat, vars = "batch")
+
+virus_batch <- kmFit(dat = dat, 
+                     model = "~ virus*asthma + batch + (1|ptID)",
+                     run.lme = TRUE, metrics = TRUE)
+## Compare fit
+plot_fit(model_result = virus_interact, model_result_y = virus_batch,
+           x="lme", y="lme", metrics = "AIC")
+## Compare DEG
+plot_venn_genes(model_result = virus_interact, model = "lme",
+                fdr.cutoff = c(0.05)) +
+plot_venn_genes(model_result = virus_batch, model = "lme",
+                fdr.cutoff = c(0.05))
+
+#6b 
+## Explore co-variate sex
+plot_pca(dat, vars = "sex")
+
+virus_sex <- kmFit(dat = dat, 
+                   model = "~ virus*asthma + sex + (1|ptID)",
+                   run.lme = TRUE, metrics = TRUE)
+## Compare fit
+plot_fit(model_result = virus_interact, model_result_y = virus_sex,
+           x="lme", y="lme", metrics = "AIC")
+## Compare DEG
+plot_venn_genes(model_result = virus_interact, model = "lme",
+                fdr.cutoff = c(0.05)) +
+plot_venn_genes(model_result = virus_sex, model = "lme",
+                fdr.cutoff = c(0.05))
+
+#7
+## Interaction significant genes
+subset.genes <- virus_interact$lme %>% 
+  filter(variable == "virus:asthma" & FDR < 0.05) %>% 
+  pull(gene)
+
+contrast_model <- kmFit(dat = dat, 
+                        model = "~ virus*asthma + (1|ptID)",
+                        run.lme = TRUE, run.contrast = TRUE,
                         contrast.var = "virus:asthma",
                         subset.genes = subset.genes)
 
-plot_venn_genes(model_result = contrast_model, model = "lmekin.contrast",
-                fdr.cutoff = c(0.05), contrasts=c("HRV_asthma - none_asthma",
-                                                  "HRV_healthy - none_healthy")) 
+plot_venn_genes(model_result = contrast_model, model = "lme.contrast",
+                fdr.cutoff = 0.05, 
+                contrasts = data.frame(
+                  contrast_ref = c("none asthma","HRV asthma",
+                                   "none healthy","none asthma"),
+                  contrast_lvl = c("none healthy","HRV healthy",
+                                   "HRV healthy","HRV asthma"))) 
 ```
 
 # R session
@@ -741,7 +786,7 @@ sessionInfo()
 
 [R]: https://cran.r-project.org/
 [RStudio]: https://www.rstudio.com/products/rstudio/download/
-[pipeline1]: https://github.com/BIGslu/tutorials/blob/main/RNAseq/1.Hawn_RNAseq_fastq.to.counts.pdf
+[pipeline1]: https://github.com/BIGslu/SEAsnake/blob/main/vignette/SEAsnake_vignette.pdf
 [pipeline2]: https://github.com/BIGslu/tutorials/blob/main/RNAseq/2.Hawn_RNAseq_counts.to.voom.pdf
 
 ```{r include=FALSE, eval=FALSE}
@@ -749,6 +794,6 @@ save(virus, virus_interact, virus_contrast,
      virus_batch, virus_batch_sex,
      virus_lme, virus_limma,
      virus_batch_lme, virus_batch_sex_lme,
-     virus_kin, virus_contrast_kin,
+     virus_kin, virus_contrast_signif,
      file="results/model_results.RData")
 ```
