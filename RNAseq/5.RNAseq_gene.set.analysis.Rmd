@@ -1,0 +1,318 @@
+---
+title: "RNA-seq data analysis"
+subtitle: "Gene set analyses"
+author: "Kim Dill-McFarland, kadm@uw.edu"
+date: "version `r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+editor_options:
+  chunk_output_type: console
+urlcolor: blue
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.height=2.5, fig.width = 8.5) 
+```
+
+# Overview
+
+This document covers gene set related analyses of RNAseq data in the R package `SEARchways`. This pipeline explores differentially expressed genes (see [voom to DEG][pipeline3]) and gene co-expression modules (see [RNAseq modules][pipeline4]). The goal is to determine pathways associated with genes and modules significantly impacted by viral infection or asthma status. The example data are human, bulk, paired-end RNA-seq, but this pipeline can be applied to other organisms or single-read libraries. 
+
+# 0. Setup
+## Software
+
+This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should also install the following packages.
+
+```{r eval=FALSE}
+#CRAN packages
+install.packages(c("tidyverse", "WGCNA"))
+
+#Bioconductor packages
+install.packages("BiocManager")
+BiocManager::install(c("edgeR", "limma", "patchwork"))
+
+#GitHub packages
+install.packages("devtools")
+devtools::install_github("BIGslu/BIGverse")
+```
+
+And load them into your current R session.
+
+```{r warning=FALSE}
+library(tidyverse)
+library(BIGverse)
+library(limma)
+library(WGCNA)
+library(patchwork)
+
+set.seed(651)
+```
+
+## Example data
+
+Example data were obtained from virus-stimulated human plasmacytoid dendritic cells. Actual patient identifiers and metadata have been altered for this tutorial.
+
+>Dill-McFarland KA, Schwartz JT, Zhao H, Shao B, Fulkerson PC, Altman MC, Gill MA. 2022. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. Epub ahead of print. doi: [10.1016/j.jaci.2022.03.025](https://doi.org/10.1016/j.jaci.2022.03.025). --- [GitHub](https://github.com/altman-lab/P259_pDC_public)
+
+Specifically, this tutorial uses RNAseq data processed using our [SEAsnake][seasnake] and [counts to voom][pipeline2] pipelines, resulting in voom-normalized, log2 counts per million (CPM) expression and associated sample metadata in a `limma EList` object in the `data_clean/` directory. These data are available in the `kimma` package within the `example.voom` data object.
+
+# 1. Load data
+
+All counts, gene, and sample metadata are contained in a single object in the `kimma` package. Note that these data contain only 1000 genes from the full data set create in our [counts to voom](pipeline2) pipeline. This is to reduce computational time.
+
+```{r}
+#Extract and rename data object
+dat <- kimma::example.voom
+```
+
+# 2. Differential gene expression
+
+First, we determine genes associated with viral infection and/or asthma in this data set. You can see more about model fitting in our [voom to DEG][pipeline3] tutorial.
+
+```{r}
+virus_lme <- kmFit(dat = dat, 
+                   model = "~ virus*asthma + (1|ptID)", 
+                   run.lme = TRUE, 
+                   use.weights = TRUE)
+```
+
+## 2.1 Hypergeometric enrichment
+
+There are hundreds of genes significant for virus and/or asthma in this data set (FDR < 0.05). This is too many to assess individuals so we use enrichment to determine pathways associated with these genes.
+
+```{r}
+summarise_kmFit(virus_lme$lme)
+```
+
+### `BIGprofiler`
+
+`SEARchway` contains two functions to run enrichment. The first `BIGprofiler` employs `clusterProfiler` to run Fisher's exact tests of your genes of interest against any gene set data base available in the Broad Molecular Signatures Database ([MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/collections.jsp)). Here, let's run the virus significant genes against the Hallmark data base.
+
+```{r}
+#Virus significant genes
+genes.virus <- virus_lme$lme %>% 
+  filter(variable == "virus" & FDR < 0.05) %>% 
+  pull(hgnc_symbol)
+
+enrich.virus <- BIGprofiler(gene_list = list("virus" = genes.virus),
+                            ID = "SYMBOL",
+                            category = "H")
+```
+
+The output includes:
+
+* `group`: Name identifier for genes of interest 
+* `size_group`: Total genes in each group
+* `gs_cat`: Gene set data base category
+* `gs_subcat`: Gene set data base subcategory
+* `size_cat.subcat`: Total genes in data base category/subcategory
+* `group_in_cat.subcat`: Total significant genes in data base category/subcategory e.g. how many of your genes of interest are present in the data base
+* `pathway`: Gene set name
+* `size_pathway`: Total genes in gene set (K)
+* `group_in_pathway`: Total significant genes in gene set (k)
+* `k/K`: group_in_pathway / size_pathway, a commonly used metric of enrichment
+* `pval`: P-value
+* `FDR`: FDR corrected P-value
+* `qvalue`: q-value
+* `genes`: List of significant genes in gene set (not shown below for length)
+
+The results show that there is 1 pathway enriched in virus significant genes at FDR < 0.05. 
+
+```{r}
+enrich.virus %>% 
+  filter(FDR < 0.05) %>% 
+  select(-genes)
+```
+
+We can easily plot this result in `BIGpicture`. We'll use FDR < 0.5 so you can see multiple pathways. You can see that just over 6% of the IFN gamma response pathway is present in our list of virus significant genes.
+
+```{r}
+plot_enrich(enrich.virus, 
+            fdr.cutoff = 0.5, fdr.colors = c(0.05, 0.5))
+```
+
+You can also look at multiple variables by inputing a data frame (`gene_df`) with the variable in 1 column and the significant genes in another. Note that the plot shows non-significant results for one variable or the other. This can be turned off with `show.overlap = FALSE`.
+
+```{r}
+gene_df <- virus_lme$lme %>% 
+  filter(FDR < 0.05 & variable %in% c("virus","asthma")) %>% 
+  select(variable, hgnc_symbol) 
+head(gene_df)
+
+enrich.all <- BIGprofiler(gene_df = gene_df,
+                          ID = "SYMBOL",
+                          category = "H")
+
+plot_enrich(enrich.all, 
+            fdr.cutoff = 0.5, fdr.colors = c(0.05, 0.5))
+```
+
+#### What about directionality?
+
+This type of enrichment does not address whether genes are up or down-regulated, just that they are significant in some way. Thus, if you would like to know direction, you need to create subsets like `virus.up` and `virus.down`, then run enrichment on the lists separately. This should be done with caution as not all gene sets have concordant directionality and shorter gene lists are less likely to be significant in any pathway.
+
+### `BIGenrichr`
+
+The other enrichment function in `SEARchways` is `BIGenrichr`, which runs a similar test but through the `enrichr` package and gene set data bases.
+
+```{r fig.height=3}
+enrich.virus2 <- BIGenrichr(gene_list = list("virus" = genes.virus),
+                          ID = "SYMBOL",
+                          dbs = "MSigDB_Hallmark_2020")
+
+plot_enrich(enrich.virus2$MSigDB_Hallmark_2020, 
+            fdr.cutoff = 0.5, fdr.colors = c(0.05, 0.5))
+```
+
+You will notice a lot more gene sets in the `enrichr` results. This package uses a slightly different statistic than `clusterProfiler` so you are likely to see different results, particularly at high FDR. For more information see <https://maayanlab.cloud/Enrichr/>
+
+## 2.2 Gene set enrichment analysis (GSEA)
+
+Another gene set related analysis is GSEA. This method uses fold change values of *all* genes in the data set instead of having you pre-define a significant list of genes. GSEA, thus, can find significant pathways with no individually significant genes in them. Instead, smaller up (or down) regulations of many genes can drive overall significance of a pathway.
+
+`BIGsea` runs GSEA with parameters similar to `BIGprofiler` only now the input is log fold change (named `estimate` in the `kimma` output).
+
+```{r}
+gene_df2 <- virus_lme$lme %>% 
+  filter(variable %in% c("virus", "asthma")) %>% 
+  select(variable, hgnc_symbol, estimate) 
+head(gene_df2)
+
+gsea.all <- BIGsea(gene_df = gene_df2,
+                          ID = "SYMBOL",
+                          category = "H")
+```
+
+Note the warning about ties in the data. This means that 2 or more genes have an identical log fold change value and thus, GSEA must randomly determine their rank order relative to each other. This is not an issue because we've already set a random seed for reproducibility. However, if there are a lot of ties in your data, like > 10%, this may indicate a need to re-assess your linear model to better represent differences across the data.
+
+Similarly, we can plot the GSEA results with `BIGpicture`. Until simple enrichment, GSEA shows directionality such as here where IFN gamma response is up-regulated in response to virus. Remember to define your variable order with `factor` in the original data if you want something other than alphabetical as this determines whether the fold change values are A-B or B-A.
+
+```{r}
+plot_gsea(gsea.all,
+          fdr.cutoff = 0.2)
+```
+
+### What if I have more than 2 groups to compare?
+
+GSEA can only support pairwise comparison. Thus, if you have a variable of interest with 3 or more levels, you need to run each pairwise comparison of interest separately. You can access this data in `kimma` with `run.contrasts = TRUE`. This is also true for interaction terms, where the model estimate is not a simple fold change.
+
+# 3. Module annotation
+
+Gene set analyses can also be used to assign function to gene co-expression modules. For more information on module building, see our [RNAseq module tutorial][pipeline4].
+
+```{r results=FALSE}
+#Define significant genes
+genes.interact <- virus_lme$lme %>% 
+  filter(variable == "virus:asthma" & FDR < 0.2) %>% 
+  pull(gene)
+
+genes.main <- virus_lme$lme %>% 
+  filter(variable %in% c("virus", "asthma") & FDR < 0.2) %>% 
+  pull(gene)
+
+genes.all <- unique(c(genes.interact, genes.main))
+
+fit <- fit_modules(dat = kimma::example.voom, 
+                   genes = genes.all,
+                   powerVector=c(1:30), 
+                   networkType = "signed",
+                   nThread = 4)
+
+mod.p14 <- make_modules(fit,
+                        sft.value = 14, 
+                        minModuleSize = 20, 
+                        maxBlockSize = 500, 
+                        deepSplit = 2,
+                        networkType = "signed", 
+                        mods.mean = TRUE, mods.eigen = TRUE, david = TRUE,
+                        nThread = 4)
+```
+
+The `SEARchways` function can be applied to module results from `RNAetc` like so.
+
+## 3.1 Hypergeometric enrichment
+
+We see several pathways enrichment in some of the modules.
+
+Note that this also showcases that different gene identifiers can be used in enrichment.
+
+```{r fig.height=5}
+mod_df <- mod.p14$mods %>% 
+  select(module.char, hgnc_symbol) 
+head(mod_df)
+
+enrich.mod <- BIGprofiler(gene_df = mod_df,
+                          ID = "SYMBOL",
+                          category = "H")
+
+plot_enrich(enrich.mod, fdr.cutoff = 0.2,
+            show.overlap = FALSE)
+```
+
+# 4. STRING networks
+
+The [STRING](https://string-db.org/) protein-protein interaction network data base is a useful tool for visualizing genes of interest. We have incorporated this visualization with `SEARchways` in order to facilitate annotation of the a STRING network with significant pathways.
+
+For example, we plot the virus significant genes and color by significant hypergeometric enrichment from `BIGprofiler`.
+
+```{r fig.height=8}
+#Map gene to STRING
+map <- map_string(genes = genes.virus)
+#plot
+plot_string(map = map,
+            enrichment = enrich.virus, fdr.cutoff = 0.05)
+```
+
+This network is pretty big so let's cut if down to just genes with at least 1 connection.
+
+```{r fig.height=8}
+plot_string(map = map,
+            enrichment = enrich.virus, fdr.cutoff = 0.05,
+            discard = "orphan")
+```
+
+Or we could color by GSEA results from `BIGsea`.
+
+```{r fig.height=8}
+gsea.virus <- gsea.all %>% 
+  filter(group == "virus")
+
+plot_string(map = map,
+            enrichment = gsea.all, fdr.cutoff = 0.2,
+            discard = "orphan")
+```
+
+# R session
+
+```{r}
+sessionInfo()
+```
+
+
+# *Navigation*
+
+* Previous tutorial: [RNAseq modules][pipeline4]
+* [Index][index]
+
+***
+
+[R]: https://cran.r-project.org/
+[RStudio]: https://www.rstudio.com/products/rstudio/download/
+[seasnake]: https://bigslu.github.io/SEAsnake/vignette/SEAsnake_vignette.html
+[voomWeights]: https://doi.org/10.1186/gb-2014-15-2-r29
+[kimma]: https://bigslu.github.io/kimma_vignette/
+[pipeline1]: https://bigslu.github.io/tutorials/RNAseq/1.RNAseq_fastq.to.counts.html
+[pipeline2]: https://bigslu.github.io/tutorials/RNAseq/2.RNAseq_counts.to.voom.html
+[pipeline3]: https://bigslu.github.io/tutorials/RNAseq/3.RNAseq_voom.to.DEG.html
+[pipeline4]: https://bigslu.github.io/tutorials/RNAseq/4.RNAseq_modules.html
+[pipeline5]: https://bigslu.github.io/tutorials/RNAseq/5.RNAseq_gene.set.analysis.html
+[index]: https://bigslu.github.io/tutorials/
+[wgcna]: https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/
+[wgcna_ref]: https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-559
