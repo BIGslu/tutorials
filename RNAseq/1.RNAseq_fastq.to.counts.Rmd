@@ -23,7 +23,7 @@ knitr::opts_chunk$set(eval=FALSE)
 
 # Overview
 
-This document covers the Hawn lab recommended data cleaning pipeline for RNA-seq fastq files. This contains the same steps as our [SEAsnake pipeline](seasnake), and we recommend you use that over running each steps individually here. However, if your data are not amenable to SEAsnake or you'd like more details on what goes on under the SEAsnake hood, please keep reading!
+This document covers our recommended data cleaning pipeline for RNA-seq fastq files. This contains the same steps as our [SEAsnake pipeline](seasnake), and we recommend you use that over running each steps individually here. However, if your data are not amenable to SEAsnake or you'd like more details on what goes on under the SEAsnake hood, please keep reading!
 
 Specifically, this tutorial is for human, bulk, paired-end RNA-seq. Modification is needed for use with other organisms or single-read libraries; this pipeline cannot be applied to single cell data. This pipeline includes quality assessment and filtering, alignment, and count table generation. The detailed sections contain example code using a single example library. A full pipeline to process multiple libraries is available at the end.
 
@@ -594,8 +594,15 @@ featureCounts -T $threads -g gene_id -t exon -p \
 
 ```
 
-[aws_tut]: https://github.com/BIGslu/tutorials/blob/main/AWS/1.AWS_setup_tutorial.pdf
-[conda_tut]: https://github.com/BIGslu/tutorials/blob/main/AWS/2.AWS_conda_setup.pdf
+# *Navigation*
+
+* Next tutorial: [counts to voom][pipeline2]
+* [Index][index]
+
+***
+
+[aws_tut]: https://github.com/BIGslu/tutorials/tree/main/AWS/1.AWS_setup_tutorial.html
+[conda_tut]: https://github.com/BIGslu/tutorials/tree/main/AWS/2.AWS_conda_setup.html
 [FastQC]: https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
 [AdapterRemoval]: https://adapterremoval.readthedocs.io/en/latest/
 [adapters]: https://support-docs.illumina.com/SHARE/AdapterSeq/Content/SHARE/AdapterSeq/AdapterSequencesIntro.htm
@@ -608,4 +615,9 @@ featureCounts -T $threads -g gene_id -t exon -p \
 [Subread]: http://subread.sourceforge.net/
 [S3 fuse]: https://github.com/s3fs-fuse/s3fs-fuse
 [Btool]: http://broadinstitute.github.io/picard/explain-flags.html
-[seasnake]: https://github.com/BIGslu/SEAsnake/blob/main/vignette/SEAsnake_vignette.pdf
+[seasnake]: https://bigslu.github.io/SEAsnake/vignette/SEAsnake_vignette.html
+[pipeline1]: https://bigslu.github.io/tutorials/RNAseq/1.RNAseq_fastq.to.counts.html
+[pipeline2]: https://bigslu.github.io/tutorials/RNAseq/2.RNAseq_counts.to.voom.html
+[pipeline3]: https://bigslu.github.io/tutorials/RNAseq/3.RNAseq_voom.to.DEG.html
+[pipeline4]: https://bigslu.github.io/tutorials/RNAseq/4.RNAseq_modules.html
+[index]: https://bigslu.github.io/tutorials/

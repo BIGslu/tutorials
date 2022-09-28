@@ -1,6 +1,6 @@
 ---
 title: "RNA-seq data cleaning"
-subtitle: "Counts to voom"
+subtitle: "counts to voom"
 author: "Kim Dill-McFarland, kadm@uw.edu"
 date: "version `r format(Sys.time(), '%B %d, %Y')`"
 output:
@@ -23,7 +23,7 @@ knitr::opts_chunk$set(fig.height=2.5)
 
 # Overview
 
-This document covers the Hawn lab recommended data cleaning pipeline for RNA-seq gene count tables. This pipeline includes quality assessment, filtering, and normalization of count tables generated using our [SEAsnake pipeline][pipeline1]. The example data are human, bulk, paired-end RNA-seq, but this pipeline can be applied to other organisms or single-read libraries. 
+This document covers our recommended data cleaning pipeline for RNA-seq gene count tables. This pipeline includes quality assessment, filtering, and normalization of count tables generated using our [SEAsnake pipeline][seasnake]. The example data are human, bulk, paired-end RNA-seq, but this pipeline can be applied to other organisms or single-read libraries. 
 
 # 0. Setup
 ## Software
@@ -32,7 +32,7 @@ This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should a
 
 ```{r eval=FALSE}
 #CRAN packages
-install.packages(c("tidyverse", "DiagrammeR", "ggrepel", "scales"))
+install.packages(c("tidyverse", "ggrepel", "scales"))
 
 #Bioconductor packages
 install.packages("BiocManager")
@@ -40,8 +40,7 @@ BiocManager::install(c("edgeR", "limma", "biomaRt", "patchwork"))
 
 #GitHub packages
 install.packages("devtools")
-devtools::install_github("BIGslu/BIGpicture", force=TRUE)
-devtools::install_github("BIGslu/RNAetc", force=TRUE)
+devtools::install_github("BIGslu/BIGverse")
 devtools::install_github("zhangyuqing/sva-devel")
 ```
 
@@ -49,8 +48,7 @@ And load them into your current R session.
 
 ```{r warning=FALSE}
 library(tidyverse)
-library(BIGpicture)
-library(RNAetc)
+library(BIGverse)
 library(scales)
 library(sva)
 library(ggrepel)
@@ -63,43 +61,21 @@ library(edgeR)
 set.seed(651)
 ```
 
-## Directory structure
-
-To directly use the code in this pipeline, you must organize your files as follows.
-
-```{r dir_structure, echo=FALSE, message=FALSE}
-library(DiagrammeR)
-grViz(diagram = "digraph flowchart {
-  node [fontname = arial, shape = retangle, fontsize=8, height=0.1]
-  dir1 [label = '@@1']
-  dir2 [label = '@@2']
-  dir3 [label = '@@3']
-  dir4 [label = '@@4']
-  dir5 [label = '@@5']
-  dir6 [label = '@@6']
-  dir7 [label = '@@7']
-
-  dir1 -> dir2,dir3,dir4,dir5;
-  dir2 -> dir6,dir7;
-  }
-  
-  [1]: 'Rproject/'
-  [2]: 'data_raw/'
-  [3]: 'data_clean/'
-  [4]: 'results/'
-  [5]: 'figs/'
-  [6]: 'combined_feature_counts.tsv\\ncombined_flagstat.tsv\\ncombined_picard.tsv'
-  [7]: 'sample and/or patient metadata'
-  ")
-```
-
-The `data_raw/` directory should contain outputs from [SEAsnake][pipeline1] pipeline including a counts table (`combined_feature_counts.tsv`) and samtools `flagstat` (`combined_flagstat.tsv`) and Picard tables (`combined_picard.tsv`). Additional sample or patient metadata may also be present in tables
-
 ## Example data
 
 Example data were obtained from virus-stimulated human plasmacytoid dendritic cells. Actual patient identifiers and metadata have been altered for this tutorial.
 
->Dill-McFarland KA, Schwartz JT, Zhao H, Shao B, Fulkerson PC, Altman MC, Gill MA. 2022. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. Epub ahead of print. doi: [10.1016/j.jaci.2022.03.025](https://doi.org/10.1016/j.jaci.2022.03.025). --- [GitHub](https://github.com/altman-lab/P259_pDC_public)
+>Dill-McFarland KA, Schwartz JT, Zhao H, Shao B, Fulkerson PC, Altman MC, Gill MA. 2022. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. Epub ahead of print. doi: [10.1016/j.jaci.2022.03.025](https://doi.org/10.1016/j.jaci.2022.03.025). --- [GitHub](https://github.com/altman-lab/pDC_public)
+
+Specifically, this tutorial uses RNAseq data processed using our [SEAsnake][pipeline1] pipeline. These data are available in `kimma` and names `example.seasnake`.
+
+## Directory structure
+
+Create a directory for the outputs of this tutorial. 
+
+```{r}
+dir.create("data_clean", showWarnings = FALSE)
+```
 
 # 1. Format data
 ## 1.1: Alignment metrics
@@ -109,8 +85,8 @@ The SEAsnake pipeline outputs library quality metrics from samtools `flagstat` a
 Let's load in the metrics files.
 
 ```{r}
-flagstat <- read_tsv("data_raw/combined_flagstat.tsv")
-picard <- read_tsv("data_raw/combined_picard.tsv")
+flagstat <- kimma::example.seasnake$flagstat
+picard <- kimma::example.seasnake$picard
 ```
 
 ## 1.2: Sample and library metadata
@@ -118,20 +94,22 @@ picard <- read_tsv("data_raw/combined_picard.tsv")
 Next, we read in and combine any patient and/or sample metadata. You may have only one of these data types. In general, patient data include things like age, sex, and any variable that is assigned to each person in the study. In contrast, sample data are variables assigned to each library, like experimental treatment, quality, etc. We combine these along with the above metrics tables to make a single data frame with all metadata.
 
 ```{r}
-patient <- read_csv("data_raw/P259_patient_meta.csv")
-sample <- read_csv("data_raw/P259_sample_meta.csv") %>% 
+patient <- kimma::example.seasnake$patient
+sample <- kimma::example.seasnake$sample %>% 
   #format any variables that need to be factors
-  mutate(virus = fct_relevel(factor(virus), ref="none"))
+  #Or any other additional formatting that you desire on your data
+  mutate(virus = fct_relevel(factor(virus), ref="none")) %>% 
+  mutate(asthma = fct_relevel(factor(virus), ref="healthy"))
 
 meta <- full_join(sample, patient, by = "ptID") %>% 
   full_join(flagstat, by = "libID") %>% 
   full_join(picard, by = "libID") 
 ```
 
-This adds the following variable to the library metrics.
+This provides the following metrics and metadata for our libraries.
 
 ```{r echo=FALSE}
-meta[1:10,2:7]
+colnames(meta)
 ```
 
 ## 1.3: Counts table
@@ -139,7 +117,7 @@ meta[1:10,2:7]
 Output by Subread `featureCounts` in SEAsnake, the counts table can be read directly into R.
 
 ```{r}
-count <- read_tsv("data_raw/combined_feature_counts.tsv")
+count <- kimma::example.seasnake$fcounts
 
 count[1:3,1:5]
 ```
@@ -361,7 +339,7 @@ In another data set corrected using all genes, we can more readily see a reducti
 If ComBat-Seq does not appear to reduce the batch effects in your data, you may also consider:
 
 * `scBatch` quantile normalization with `QuantNorm( )`
-* `limma` batch correction based only on duplicate samples with `removeBatchEffect( )`. This would be applied during linear modeling as seen in the [voom to DEG][pipeline3] tutorial
+* `limma` batch correction based only on duplicate samples with `removeBatchEffect( )`. This would be applied during linear modeling in `limma`
 * Including batch as a variable in linear modeling. You may do this in addition to batch correction or on its own with the uncorrected data
 
 #### Choosing not to correct batch effects
@@ -446,7 +424,7 @@ identical(meta.filter.out.dedup.ord$libID,
           colnames(count.filter.pc.combat.out.dedup.ord))
 ```
 
-Then, we merge into the DEGList object, `edgeR` format.
+Then, we merge into the DGEList object, `edgeR` format.
 
 ```{r}
 dat <- DGEList(
@@ -516,7 +494,7 @@ rare <- as.data.frame(cpm(dat$counts)) %>%
             express.in.libs = length(value[value > 0]),
             .groups="drop")
 
-write_csv(rare, file="data_clean/P259_rare_genes.csv")
+write_csv(rare, file="data_clean/rare_genes.csv")
 rare
 ```
 
@@ -605,8 +583,8 @@ plot_pca(dat.abund.norm.voom, vars = c("virus","ptID","sex","batch","outlier")) 
 Write as `RData`
 
 ```{r}
-save(dat.abund.norm, file = "data_clean/P259_dat.RData")
-save(dat.abund.norm.voom, file = "data_clean/P259_voom.RData")
+save(dat.abund.norm, file = "data_clean/dat.RData")
+save(dat.abund.norm.voom, file = "data_clean/voom.RData")
 ```
 
 Write counts as `csv`
@@ -614,11 +592,11 @@ Write counts as `csv`
 ```{r}
 as.data.frame(dat.abund.norm$counts) %>% 
   rownames_to_column("ensembl_gene_id") %>% 
-  write_csv("data_clean/P259_counts.csv")
+  write_csv("data_clean/counts.csv")
 
 as.data.frame(dat.abund.norm.voom$E) %>% 
   rownames_to_column("ensembl_gene_id") %>% 
-  write_csv("data_clean/P259_counts_voom.csv")
+  write_csv("data_clean/counts_voom.csv")
 ```
 
 # R session
@@ -627,9 +605,21 @@ as.data.frame(dat.abund.norm.voom$E) %>%
 sessionInfo()
 ```
 
+# *Navigation*
+
+* Previous tutorial: [fastq to counts][pipeline1]
+* Next tutorial: [voom to DEG][pipeline3]
+* [Index][index]
+
+***
+
 [R]: https://cran.r-project.org/
 [RStudio]: https://www.rstudio.com/products/rstudio/download/
-[pipeline1]: https://github.com/BIGslu/SEAsnake/blob/main/vignette/SEAsnake_vignette.pdf
-[pipeline3]: https://github.com/BIGslu/tutorials/blob/main/RNAseq/3.Hawn_RNAseq_voom.to.DEG.pdf
+[seasnake]: https://bigslu.github.io/SEAsnake/vignette/SEAsnake_vignette.html
+[kimma]: https://bigslu.github.io/kimma_vignette/kimma_vignette.html
 [combat]: https://doi.org/10.1093/nargab/lqaa078
-
+[pipeline1]: https://bigslu.github.io/tutorials/RNAseq/1.RNAseq_fastq.to.counts.html
+[pipeline2]: https://bigslu.github.io/tutorials/RNAseq/2.RNAseq_counts.to.voom.html
+[pipeline3]: https://bigslu.github.io/tutorials/RNAseq/3.RNAseq_voom.to.DEG.html
+[pipeline4]: https://bigslu.github.io/tutorials/RNAseq/4.RNAseq_modules.html
+[index]: https://bigslu.github.io/tutorials/
