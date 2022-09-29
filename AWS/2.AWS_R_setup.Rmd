@@ -92,9 +92,34 @@ sudo yum install -y gcc gcc-c++ gcc-gfortran readline-devel \
   zlib-devel bzip2 bzip2-devel xz xz-devel \
   libcurl libcurl.i686 libcurl-devel.x86_64 \
   openssl-devel findutils libffi-devel \
-  libxml2-devel pcre java
-  
+  libxml2 libxml2-devel pcre java \
+  nlopt nlopt-devel libpng-devel cmake pkg-config #for kimma
+
 sudo yum update -y
+```
+
+Update nlopt
+
+```{bash eval=FALSE}
+cd
+#Update CMake
+wget https://cmake.org/files/v3.23/cmake-3.23.1.tar.gz
+tar -xvzf cmake-3.23.1.tar.gz
+cd cmake-3.23.1
+./bootstrap
+make
+sudo make install
+
+#Update nlopt
+cd
+wget https://github.com/stevengj/nlopt/archive/v2.7.1.tar.gz
+tar -xf v2.7.1.tar.gz
+cd nlopt-2.7.1/
+mkdir build
+cd build
+cmake ..
+make
+#Restart instance
 ```
 
 ## Compile and install R
