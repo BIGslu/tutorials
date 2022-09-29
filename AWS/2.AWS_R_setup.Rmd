@@ -3,9 +3,9 @@ title: "Installing and using R on AWS"
 author: "Kim Dill-McFarland, kadm@uw.edu"
 date: "version `r format(Sys.time(), '%B %d, %Y')`"
 output:
-  pdf_document:
-    toc: no
   html_document:
+    toc: no
+  pdf_document:
     toc: no
 editor_options:
   chunk_output_type: console

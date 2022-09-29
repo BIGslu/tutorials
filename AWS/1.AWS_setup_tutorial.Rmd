@@ -4,12 +4,12 @@ subtitle: "Account setup and first-use tutorial"
 author: "Kim Dill-McFarland, kadm@uw.edu"
 date: "version `r format(Sys.time(), '%B %d, %Y')`"
 output:
-  pdf_document:
-    toc: yes
   html_document:
     toc: yes
     toc_float:
       collapsed: no
+  pdf_document:
+    toc: yes
 editor_options:
   chunk_output_type: console
 urlcolor: blue
