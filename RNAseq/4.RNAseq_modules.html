@@ -1518,7 +1518,7 @@ div.tocify {
 <h1 class="title toc-ignore">RNA-seq data analysis</h1>
 <h3 class="subtitle">Co-expression modules (WGCNA)</h3>
 <h4 class="author">Kim Dill-McFarland, <a href="mailto:kadm@uw.edu" class="email">kadm@uw.edu</a></h4>
-<h4 class="date">version September 28, 2022</h4>
+<h4 class="date">version October 13, 2022</h4>
 
 </div>
 
@@ -1639,8 +1639,8 @@ to DEG</a> tutorial.</p>
 <pre><code>## Model: 12 libraries</code></pre>
 <pre><code>## Complete: 1000 genes</code></pre>
 <pre><code>## Failed: 0 genes</code></pre>
-<p>We extract gene significant for the interaction term as well as those
-significant for virus or asthma alone.</p>
+<p>We extract genes significant for the interaction term as well as
+those significant for virus or asthma alone.</p>
 <pre class="r"><code>genes.interact &lt;- virus_lme$lme %&gt;% 
   filter(variable == &quot;virus:asthma&quot; &amp; FDR &lt; 0.2) %&gt;% 
   pull(gene)
@@ -1655,7 +1655,7 @@ genes.asthma &lt;- virus_lme$lme %&gt;%
 
 
 genes.all &lt;- unique(c(genes.interact, genes.virus, genes.asthma))</code></pre>
-<p>This results in 485 for using in module building. Note that this
+<p>This results in 485 genes for use in module building. Note that this
 example data set contains only 1000 genes out of the roughly 14,000
 protein coding genes usually seen in an RNAseq data set. Thus, the genes
 used in module analysis here are many fewer than would be seen in a full
@@ -1834,7 +1834,7 @@ Here, we will use the power 14 build to assess these additional
 parameters.</p>
 <div id="minimum-module-size" class="section level3">
 <h3>Minimum module size</h3>
-<p>As the name suggest, minimum module size is the minimum number of
+<p>As the name suggests, minimum module size is the minimum number of
 correlated genes needed to make a module. If you have a group of
 correlated genes that do not make the minimum, those genes get
 redistributed, thus changing the overall network.</p>
@@ -1965,7 +1965,7 @@ paths. Hence, the idea that it is an art, not a science.</p>
 <h1>4. Differential module expression</h1>
 <p>Once you’ve finalized your modules, you can assess their expression
 similar to individual genes. Here, we use mean expression of genes in
-modules. You may use the module eigen values as well (contained in
+modules. You may use the module eigenvalues as well (contained in
 <code>mod.p14$MEs</code>). We generally see similar results with the two
 methods and chose mean module expression because the values are more
 directly interpretable in relation to actual expression.</p>

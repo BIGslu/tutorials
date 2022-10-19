@@ -88,7 +88,7 @@ virus_lme <- kmFit(dat = dat,
                    use.weights = TRUE)
 ```
 
-We extract gene significant for the interaction term as well as those significant for virus or asthma alone.
+We extract genes significant for the interaction term as well as those significant for virus or asthma alone.
 
 ```{r}
 genes.interact <- virus_lme$lme %>% 
@@ -107,7 +107,7 @@ genes.asthma <- virus_lme$lme %>%
 genes.all <- unique(c(genes.interact, genes.virus, genes.asthma))
 ```
 
-This results in `r length(genes.all)` for using in module building. Note that this example data set contains only 1000 genes out of the roughly 14,000 protein coding genes usually seen in an RNAseq data set. Thus, the genes used in module analysis here are many fewer than would be seen in a full data set.
+This results in `r length(genes.all)` genes for use in module building. Note that this example data set contains only 1000 genes out of the roughly 14,000 protein coding genes usually seen in an RNAseq data set. Thus, the genes used in module analysis here are many fewer than would be seen in a full data set.
 
 We filter the `dat` object to contain only these genes.
 
@@ -216,7 +216,7 @@ There are a lot of module building parameters as you can see in the `?blockwiseM
 
 ### Minimum module size
 
-As the name suggest, minimum module size is the minimum number of correlated genes needed to make a module. If you have a group of correlated genes that do not make the minimum, those genes get redistributed, thus changing the overall network.
+As the name suggests, minimum module size is the minimum number of correlated genes needed to make a module. If you have a group of correlated genes that do not make the minimum, those genes get redistributed, thus changing the overall network.
 
 The default `minModSize` is the minimum of 20 or 1/2 the number of genes. In these data, that is `r length(genes.all)/2` so our default run had `minModSize = 20` and we saw that our smallest module 8 was 35 genes.
 
@@ -302,7 +302,7 @@ data.frame(
 
 # 4. Differential module expression
 
-Once you've finalized your modules, you can assess their expression similar to individual genes. Here, we use mean expression of genes in modules. You may use the module eigen values as well (contained in `mod.p14$MEs`). We generally see similar results with the two methods and chose mean module expression because the values are more directly interpretable in relation to actual expression.
+Once you've finalized your modules, you can assess their expression similar to individual genes. Here, we use mean expression of genes in modules. You may use the module eigenvalues as well (contained in `mod.p14$MEs`). We generally see similar results with the two methods and chose mean module expression because the values are more directly interpretable in relation to actual expression.
 
 ## 4.1 Mean module expression
 
