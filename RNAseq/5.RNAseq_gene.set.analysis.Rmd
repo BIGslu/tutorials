@@ -158,6 +158,36 @@ plot_enrich(enrich.all,
 
 This type of enrichment does not address whether genes are up or down-regulated, just that they are significant in some way. Thus, if you would like to know direction, you need to create subsets like `virus.up` and `virus.down`, then run enrichment on the lists separately. This should be done with caution as not all gene sets have concordant directionality and shorter gene lists are less likely to be significant in any pathway.
 
+### A note on saving `SEARchways` results
+
+Many `SEARchways` results contain list data. For example, the `genes` column from all of the `BIG` functions in this tutorial is a list column. This means these data cannot be saved outside of R as they are.
+
+```{r}
+class(enrich.all$genes)
+```
+
+To save this column outside R, simply convert it to a `character`.
+
+```{r eval=FALSE}
+enrich.all %>% 
+  mutate(genes = as.character(genes)) %>% 
+  write_csv(file = "results/BIGprofiler.results.csv")
+```
+
+Note that if you read this csv back into R, the `genes` column will not be formatting correctly for downstream `BIGverse` functions. Thus, we recommend saving data in `.RData` or `.Rds` in order to maintain formatting.
+
+Alternatively, you can unnest the data to get 1 row per gene per pathway. Then when you read the `csv` into R, you can re-nest it like so.
+
+```{r eval=FALSE}
+enrich.all %>% 
+  unnest(genes) %>% 
+  write_csv(file = "results/BIGprofiler.results.csv")
+
+enrich.all <- read_csv("results/BIGprofiler.results.csv") %>% 
+  group_by(across(c(-genes))) %>% 
+  summarise(genes = list(genes), .groups = "drop")
+```
+
 ### `BIGenrichr`
 
 The other enrichment function in `SEARchways` is `BIGenrichr`, which runs a similar test but through the `enrichr` package and gene set data bases.
