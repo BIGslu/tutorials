@@ -99,10 +99,10 @@ summarise_kmFit(virus_lme$lme)
 #Virus significant genes
 genes.virus <- virus_lme$lme %>% 
   filter(variable == "virus" & FDR < 0.05) %>% 
-  pull(hgnc_symbol)
+  pull(gene)
 
 enrich.virus <- BIGprofiler(gene_list = list("virus" = genes.virus),
-                            ID = "SYMBOL",
+                            ID = "ENSEMBL",
                             category = "H")
 ```
 
@@ -143,11 +143,11 @@ You can also look at multiple variables by inputing a data frame (`gene_df`) wit
 ```{r}
 gene_df <- virus_lme$lme %>% 
   filter(FDR < 0.05 & variable %in% c("virus","asthma")) %>% 
-  select(variable, hgnc_symbol) 
+  select(variable, gene) 
 head(gene_df)
 
 enrich.all <- BIGprofiler(gene_df = gene_df,
-                          ID = "SYMBOL",
+                          ID = "ENSEMBL",
                           category = "H")
 
 plot_enrich(enrich.all, 
@@ -194,7 +194,7 @@ The other enrichment function in `SEARchways` is `BIGenrichr`, which runs a simi
 
 ```{r fig.height=3}
 enrich.virus2 <- BIGenrichr(gene_list = list("virus" = genes.virus),
-                          ID = "SYMBOL",
+                          ID = "ENSEMBL",
                           dbs = "MSigDB_Hallmark_2020")
 
 plot_enrich(enrich.virus2$MSigDB_Hallmark_2020, 
@@ -212,11 +212,11 @@ Another gene set related analysis is GSEA. This method uses fold change values o
 ```{r}
 gene_df2 <- virus_lme$lme %>% 
   filter(variable %in% c("virus", "asthma")) %>% 
-  select(variable, hgnc_symbol, estimate) 
+  select(variable, gene, estimate) 
 head(gene_df2)
 
 gsea.all <- BIGsea(gene_df = gene_df2,
-                          ID = "SYMBOL",
+                          ID = "ENSEMBL",
                           category = "H")
 ```
 
@@ -275,11 +275,11 @@ Note that this also showcases that different gene identifiers can be used in enr
 
 ```{r fig.height=5}
 mod_df <- mod.p14$mods %>% 
-  select(module.char, hgnc_symbol) 
+  select(module.char, geneName) 
 head(mod_df)
 
 enrich.mod <- BIGprofiler(gene_df = mod_df,
-                          ID = "SYMBOL",
+                          ID = "ENSEMBL",
                           category = "H")
 
 plot_enrich(enrich.mod, fdr.cutoff = 0.2,
@@ -289,6 +289,8 @@ plot_enrich(enrich.mod, fdr.cutoff = 0.2,
 # 4. STRING networks
 
 The [STRING](https://string-db.org/) protein-protein interaction network data base is a useful tool for visualizing genes of interest. We have incorporated this visualization with `SEARchways` in order to facilitate annotation of the a STRING network with significant pathways.
+
+## 4.1 Network colored by enrichment
 
 For example, we plot the virus significant genes and color by significant hypergeometric enrichment from `BIGprofiler`.
 
@@ -300,24 +302,107 @@ plot_string(map = map,
             enrichment = enrich.virus, fdr.cutoff = 0.05)
 ```
 
+### Using other gene identifiers 
+
+We used ENSEMBL gene identifiers in our enrichment, so these are used to label the networks nodes. However, you may wish to use more human-readable names like HGNC symbols. We can pull these data from the original `dat$genes` metadata or if you do not already have this information, checkout [`biomaRt`](https://bioconductor.org/packages/release/bioc/vignettes/biomaRt/inst/doc/accessing_ensembl.html).
+
+```{r}
+#View gene metadata
+head(dat$genes)
+
+#Convert ENSEMBL gene list to HGNC symbol
+genes.virus.hgnc <- dat$genes %>% 
+  filter(geneName %in% genes.virus) %>% 
+  pull(hgnc_symbol)
+genes.virus.hgnc[1:3]
+```
+
+We also need to convert the enrichment results
+
+```{r}
+genes.key <- dat$genes %>% 
+  select(geneName, hgnc_symbol)
+
+enrich.virus.hgnc <- enrich.virus %>% 
+  #Match ENSEMBL to HGNC
+  unnest(genes) %>% 
+  left_join(genes.key, by = c("genes"="geneName")) %>% 
+  select(-genes) %>% 
+  #Re-nest gene IDs
+  group_by(across(c(-hgnc_symbol))) %>% 
+  summarise(genes = list(hgnc_symbol), .groups = "drop")
+```
+
+Or rerun the enrichment with the HGNC symbols.
+
+```{r eval=FALSE}
+enrich.virus.hgnc <- BIGprofiler(gene_list = list("virus" = genes.virus.hgnc),
+                            ID = "SYMBOL",
+                            category = "H")
+```
+
+Then we can re-make the network.
+
+```{r fig.height=8}
+#Map gene to STRING
+map <- map_string(genes = genes.virus.hgnc)
+#plot
+plot_string(map = map,
+            enrichment = enrich.virus.hgnc, fdr.cutoff = 0.05)
+```
+
+## 4.2 Customizing networks
+
 This network is pretty big so let's cut if down to just genes with at least 1 connection.
 
 ```{r fig.height=8}
 plot_string(map = map,
-            enrichment = enrich.virus, fdr.cutoff = 0.05,
+            enrichment = enrich.virus.hgnc, fdr.cutoff = 0.05,
             discard = "orphan")
 ```
 
-Or we could color by GSEA results from `BIGsea`.
+The pathway names aren't nicely formatted so we could change them in the enrichment results.
 
 ```{r fig.height=8}
-gsea.virus <- gsea.all %>% 
-  filter(group == "virus")
+enrich.virus.hgnc.format <- enrich.virus.hgnc %>% 
+  mutate(pathway = gsub("HALLMARK_","",pathway),
+         pathway = gsub("_"," ",pathway))
 
 plot_string(map = map,
-            enrichment = gsea.all, fdr.cutoff = 0.2,
+            enrichment = enrich.virus.hgnc.format, fdr.cutoff = 0.05,
             discard = "orphan")
 ```
+
+Or we could look at just nodes with no connections (i.e. orphans). We also use a non-default layout for this visualization.
+
+```{r fig.height=8}
+plot_string(map = map,
+            enrichment = enrich.virus.hgnc.format, fdr.cutoff = 0.05,
+            discard = "cluster",
+            layout = "grid")
+```
+
+## 4.2 Network colored by GSEA
+
+We can also color by GSEA leading edge genes from `BIGsea`. Again, we need to convert or rerun GSEA with HGNC symbols to match the current network.
+
+```{r fig.height=8}
+gsea.virus.hgnc <- gsea.all %>% 
+  filter(group == "virus") %>% 
+  #Match ENSEMBL to HGNC
+  unnest(leadingEdge) %>% 
+  left_join(genes.key, by = c("leadingEdge"="geneName")) %>% 
+  select(-leadingEdge) %>% 
+  #Re-nest gene IDs
+  group_by(across(c(-hgnc_symbol))) %>% 
+  summarise(leadingEdge = list(hgnc_symbol), .groups = "drop")
+
+plot_string(map = map,
+            enrichment = gsea.virus.hgnc, fdr.cutoff = 0.2,
+            discard = "orphan")
+```
+
+Note that fewer genes are colored in the GSEA network. This is because GSEA identifies the leading edge only. Thus, you can have genes in your network that are annotated to a significant GSEA pathway but not colored because they were not leading edge in your comparison of interest.
 
 # R session
 
