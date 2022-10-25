@@ -1373,8 +1373,8 @@ pre code {
   border-radius: 4px;
 }
 
-.tabset-dropdown > .nav-tabs > li.active:before {
-  content: "";
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
   font-family: 'Glyphicons Halflings';
   display: inline-block;
   padding: 10px;
@@ -1382,16 +1382,9 @@ pre code {
 }
 
 .tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
-  content: "";
-  border: none;
-}
-
-.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
-  content: "";
+  content: "\e258";
   font-family: 'Glyphicons Halflings';
-  display: inline-block;
-  padding: 10px;
-  border-right: 1px solid #ddd;
+  border: none;
 }
 
 .tabset-dropdown > .nav-tabs > li.active {
@@ -1518,7 +1511,7 @@ div.tocify {
 <h1 class="title toc-ignore">RNA-seq data analysis</h1>
 <h3 class="subtitle">voom to DEG</h3>
 <h4 class="author">Kim Dill-McFarland, <a href="mailto:kadm@uw.edu" class="email">kadm@uw.edu</a></h4>
-<h4 class="date">version September 28, 2022</h4>
+<h4 class="date">version October 25, 2022</h4>
 
 </div>
 
@@ -1553,16 +1546,16 @@ devtools::install_github(&quot;BIGslu/BIGverse&quot;)</code></pre>
 <p>And load them into your current R session.</p>
 <pre class="r"><code>library(tidyverse)</code></pre>
 <pre><code>## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.2 ──
-## ✔ ggplot2 3.3.6      ✔ purrr   0.3.4 
+## ✔ ggplot2 3.3.6      ✔ purrr   0.3.5 
 ## ✔ tibble  3.1.8      ✔ dplyr   1.0.10
 ## ✔ tidyr   1.2.1      ✔ stringr 1.4.1 
-## ✔ readr   2.1.2      ✔ forcats 0.5.2 
+## ✔ readr   2.1.3      ✔ forcats 0.5.2 
 ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
 ## ✖ dplyr::filter() masks stats::filter()
 ## ✖ dplyr::lag()    masks stats::lag()</code></pre>
 <pre class="r"><code>library(BIGverse)</code></pre>
 <pre><code>## ── Attaching packages ──────────────────────────────────────── BIGverse 1.0.0 ──
-## ✔ kimma      1.4.2     ✔ BIGpicture 1.0.0
+## ✔ kimma      1.4.3     ✔ BIGpicture 1.0.2
 ## ✔ RNAetc     1.0.0     ✔ SEARchways 1.0.0
 ## ── Conflicts ─────────────────────────────────────────── BIGverse_conflicts() ──
 ## ✖ dplyr::filter() masks stats::filter()
@@ -1609,7 +1602,7 @@ differentially expressed genes.</p>
 <div id="load-data" class="section level1">
 <h1>1. Load data</h1>
 <p>All counts, gene, and sample metadata are contained in a single
-object in the <code>kimma</code> package. Note that these data contain
+object from the <code>limma</code> package. Note that these data contain
 only 1000 genes from the full data set create in our <a href="pipeline2">counts to voom</a> pipeline. This is to reduce
 computational time.</p>
 <pre class="r"><code>#Extract and rename data object
@@ -2373,37 +2366,37 @@ plot_volcano(virus_interact, model=&quot;lme&quot;,
 ## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## other attached packages:
-##  [1] patchwork_1.1.2  edgeR_3.38.4     limma_3.52.3     SEARchways_1.0.0
-##  [5] BIGpicture_1.0.0 RNAetc_1.0.0     kimma_1.4.2      BIGverse_1.0.0  
-##  [9] forcats_0.5.2    stringr_1.4.1    dplyr_1.0.10     purrr_0.3.4     
-## [13] readr_2.1.2      tidyr_1.2.1      tibble_3.1.8     ggplot2_3.3.6   
+##  [1] patchwork_1.1.2  edgeR_3.38.4     limma_3.52.4     SEARchways_1.0.0
+##  [5] BIGpicture_1.0.2 RNAetc_1.0.0     kimma_1.4.3      BIGverse_1.0.0  
+##  [9] forcats_0.5.2    stringr_1.4.1    dplyr_1.0.10     purrr_0.3.5     
+## [13] readr_2.1.3      tidyr_1.2.1      tibble_3.1.8     ggplot2_3.3.6   
 ## [17] tidyverse_1.3.2 
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] httr_1.4.4          sass_0.4.2          splines_4.2.1      
-##  [4] jsonlite_1.8.0      foreach_1.5.2       modelr_0.1.9       
+##  [4] jsonlite_1.8.3      foreach_1.5.2       modelr_0.1.9       
 ##  [7] bslib_0.4.0         assertthat_0.2.1    highr_0.9          
-## [10] googlesheets4_1.0.1 cellranger_1.1.0    yaml_2.3.5         
+## [10] googlesheets4_1.0.1 cellranger_1.1.0    yaml_2.3.6         
 ## [13] pillar_1.8.1        backports_1.4.1     lattice_0.20-45    
-## [16] glue_1.6.2          digest_0.6.29       rvest_1.0.3        
+## [16] glue_1.6.2          digest_0.6.30       rvest_1.0.3        
 ## [19] colorspace_2.0-3    Matrix_1.5-1        htmltools_0.5.3    
 ## [22] pkgconfig_2.0.3     broom_1.0.1         haven_2.5.1        
 ## [25] scales_1.2.1        tzdb_0.3.0          googledrive_2.0.0  
-## [28] mgcv_1.8-40         generics_0.1.3      farver_2.1.1       
+## [28] mgcv_1.8-41         generics_0.1.3      farver_2.1.1       
 ## [31] ellipsis_0.3.2      cachem_1.0.6        withr_2.5.0        
-## [34] cli_3.4.1           magrittr_2.0.3      crayon_1.5.1       
-## [37] readxl_1.4.1        evaluate_0.16       fs_1.5.2           
-## [40] fansi_1.0.3         nlme_3.1-159        xml2_1.3.3         
+## [34] cli_3.4.1           magrittr_2.0.3      crayon_1.5.2       
+## [37] readxl_1.4.1        evaluate_0.17       fs_1.5.2           
+## [40] fansi_1.0.3         nlme_3.1-160        xml2_1.3.3         
 ## [43] ggvenn_0.1.9        tools_4.2.1         hms_1.1.2          
-## [46] gargle_1.2.1        lifecycle_1.0.2     munsell_0.5.0      
+## [46] gargle_1.2.1        lifecycle_1.0.3     munsell_0.5.0      
 ## [49] reprex_2.0.2        locfit_1.5-9.6      compiler_4.2.1     
 ## [52] jquerylib_0.1.4     rlang_1.0.6         grid_4.2.1         
 ## [55] iterators_1.0.14    rstudioapi_0.14     labeling_0.4.2     
-## [58] rmarkdown_2.16      gtable_0.3.1        codetools_0.2-18   
+## [58] rmarkdown_2.17      gtable_0.3.1        codetools_0.2-18   
 ## [61] DBI_1.1.3           R6_2.5.1            lubridate_1.8.0    
 ## [64] knitr_1.40          fastmap_1.1.0       utf8_1.2.2         
-## [67] stringi_1.7.8       Rcpp_1.0.9          vctrs_0.4.1        
-## [70] dbplyr_2.2.1        tidyselect_1.1.2    xfun_0.33</code></pre>
+## [67] stringi_1.7.8       Rcpp_1.0.9          vctrs_0.5.0        
+## [70] dbplyr_2.2.1        tidyselect_1.2.0    xfun_0.34</code></pre>
 </div>
 <div id="navigation" class="section level1">
 <h1><em>Navigation</em></h1>

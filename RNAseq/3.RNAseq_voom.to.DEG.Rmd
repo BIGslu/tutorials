@@ -69,7 +69,7 @@ Our main research question is how human rhinovirus (HRV) infection impacts gene 
 
 # 1. Load data
 
-All counts, gene, and sample metadata are contained in a single object in the `kimma` package. Note that these data contain only 1000 genes from the full data set create in our [counts to voom](pipeline2) pipeline. This is to reduce computational time.
+All counts, gene, and sample metadata are contained in a single object from the `limma` package. Note that these data contain only 1000 genes from the full data set create in our [counts to voom](pipeline2) pipeline. This is to reduce computational time.
 
 ```{r}
 #Extract and rename data object
