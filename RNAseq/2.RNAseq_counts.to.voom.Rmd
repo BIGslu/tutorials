@@ -268,9 +268,9 @@ count.filter.pc <- count.filter %>%
 
 This removes `r nrow(count.filter)-nrow(count.filter.pc)` genes from this data set. These data were pre-filtered so you will see A LOT more genes removed in this step in your data. In the current human genome (GRCh38 release 106), there are `r nrow(key)` protein-coding genes, of which `r nrow(count.filter.pc)` were found in this data set.
 
-## 2.3: Correct batch effects
+## 2.3: Correct batch effects {#section2_3}
 
-If your libraries were obtained from multiple experiments and/or sequenced on multiple runs, batch effects may exist in the data. These effects will mask true biological signals and should be corrected prior to modeling. There are a number of ways to batch correct. Our preferred method is with [ComBat-Seq][combat] implemented in `sva`.
+If your libraries were obtained from multiple experiments and/or sequenced on multiple runs, batch effects may exist in the data. These effects will mask true biological signals and should be corrected prior to modeling. There are a number of ways to batch correct. Our preferred methods are [ComBat-Seq][combat] implemented in `sva` and `limma` `removeBatchEffect`.
 
 First, we look for batch effects in PCA. These effects may be apparent in an overall shift of libraries in a batch.
 
@@ -303,9 +303,17 @@ BIGpicture::plot_pca(count.filter.pc, meta=meta.filter.dups,
 
 Here, we see apparent batch effects where batch A tends to have lower PC2 values than batch B. This is re-enforced by the duplicate samples which group on PC2 more by batch than by duplicate samples.
 
-To correct batch effects, we use negative binomial normalization with `sva` ComBat-Seq including any main `group` effects (virus stimulation) and co-variates `covar` (sex) we want to retain in our later models. This ensures that we don't over-correct the data and lose our biological signals of interest.
+### 2.3.1 ComBat-Seq {#section2_3_1}
 
-We also reduce the data set with `shrink = TRUE, gene.subset.n = 2` to run models on 2 random genes. This significantly reduces computational time for this tutorial. However, a real analysis should be run on a larger subset. We recommend anywhere from 10,000 to all genes in the data.
+To correct batch effects, we use negative binomial normalization with `sva` ComBat-Seq including 
+
+* `batch`: the variable denoting batches
+* `group`: the main effect, in this case virus stimulation
+    - If you have more than one main effect, the others can be included as co-variates
+* `covar`: co-variates, in this case sex
+    - Both `group` and `covar` are variables you want to retain in our later linear models. This ensures that we don't over-correct the data and lose our biological signals of interest.
+
+We also reduce the data set with `shrink = TRUE, gene.subset.n = 2` to run models on 2 random genes. This significantly reduces computational time for this tutorial. *However, a real analysis should be run on a larger subset.* We recommend anywhere from 10,000 to all genes in the data.
 
 ```{r combat}
 count.filter.pc.combat <- count.filter.pc %>% 
@@ -317,7 +325,8 @@ count.filter.pc.combat <- count.filter.pc %>%
                  group = meta.filter$virus,
                  covar_mod = model.matrix(~ sex, meta.filter),
              shrink = TRUE, gene.subset.n = 2) %>% 
-  as.data.frame()
+  as.data.frame() %>% 
+  rownames_to_column("Geneid")
 ```
 
 Note that the total "co-variates" listed in the above message includes non-reference levels of the main effects (HRV) plus variables listed as `covar` (sex).
@@ -334,12 +343,21 @@ In another data set corrected using all genes, we can more readily see a reducti
 
 ![](figs/pca_raw.png){width=30%} ![](figs/pca_combat.png){width=30%} 
 
-#### Other batch correction methods
+### 2.3.2 limma removeBatchEffect {#limma_batch1}
 
-If ComBat-Seq does not appear to reduce the batch effects in your data, you may also consider:
+`limma`'s method for removing batch effects implements linear regression on the normalized counts. Thus, this cannot be completed until after data normalization and log transformation. See [Section 4](#limma_batch2) for details.
 
-* `scBatch` quantile normalization with `QuantNorm( )`
-* `limma` batch correction based only on duplicate samples with `removeBatchEffect( )`. This would be applied during linear modeling in `limma`
+#### Choosing a batch correction method
+
+The main difference between our two preferred batch correction methods is implementation on raw (negative binomial) vs normalized (linear) counts. In practice, ComBat-Seq tends to be more conservative and some batch effects remain in the final, normalized counts. In contrast, limma regresses out batch on the final counts so no batch effects remain; this can over-correct the data and remove real biological variation. 
+
+Importantly, both method rely heavily on repeated samples across batches as these technical replicates best represent batch effects. Without repeated samples, neither method performs well.
+
+We recommend comparing both methods. In the end, we generally use ComBat-Seq for small batch effects and limma for large ones.
+
+There are also other batch correction methods you may wish to explore.
+
+* `scBatch` quantile normalization with `QuantNorm( )` implemented on unnormalized counts similar to ComBat-Seq
 * Including batch as a variable in linear modeling. You may do this in addition to batch correction or on its own with the uncorrected data
 
 #### Choosing not to correct batch effects
@@ -382,11 +400,26 @@ count.filter.pc.combat.out <- count.filter.pc.combat %>%
   select(1, all_of(meta.filter.out$libID))
 ```
 
+If you did not complete ComBat-Seq batch correction, the following code completes the PCA outlier filtering. (Just remove `combat` from the count object names.)
+
+```{r}
+not.outlier <- pca3$outlier$data %>% 
+  filter(col.group == "no")
+
+meta.filter.out <- meta.filter %>% 
+  filter(libID %in% not.outlier$libID)
+
+count.filter.pc.out <- count.filter.pc %>% 
+  select(1, all_of(meta.filter.out$libID))
+```
+
 Here, this removes `r nrow(meta.filter)-nrow(meta.filter.out)` libraries because we do not have any at std dev > 3X.
 
-## 2.5: Filter duplicate libraries
+## 2.5: Filter duplicate libraries {#section2_5}
 
 Your data may have have one or more libraries that represent the same sample. This is common when multiple sequencing batches are completed and a couple of samples are re-sequenced to aid in batch effect detection. Unless the majority of samples have multiple libraries (*i.e.* technical replicates), the duplicates should be removed or they will skew downstream analysis.
+
+In addition, if you have duplicate libraries and wish to perform `limma` batch correction, skip this step.
 
 We usually keep the library with the highest number of sequences like so.
 
@@ -413,29 +446,85 @@ At this stage, we've completed sample filtering and can collapse our count and m
 First, let's ensure that all the data are in the same order.
 
 ```{r}
+#Order metadata by library ID
 meta.filter.out.dedup.ord <- meta.filter.out.dedup %>% 
   arrange(libID)
 
+#Order counts by library ID and gene ID
 count.filter.pc.combat.out.dedup.ord <- count.filter.pc.combat.out.dedup %>% 
-  select(1, all_of(meta.filter.out.dedup.ord$libID))
+  select(1, all_of(meta.filter.out.dedup.ord$libID)) %>% 
+  arrange(Geneid)
 
-#check
+#Order gene key by gene ID
+key.filter.ord <- key.filter %>% 
+  arrange(ensembl_gene_id)
+
+#check libraries
 identical(meta.filter.out.dedup.ord$libID,
-          colnames(count.filter.pc.combat.out.dedup.ord))
+          colnames(count.filter.pc.combat.out.dedup.ord)[-1])
+
+#Check genes
+identical(key.filter.ord$ensembl_gene_id,
+          count.filter.pc.combat.out.dedup.ord$Geneid)
 ```
 
 Then, we merge into the DGEList object, `edgeR` format.
 
 ```{r}
+# Move gene names from a variable in the df to rownames and format to matrix
+count.filter.pc.combat.out.dedup.ord.mat <- 
+  count.filter.pc.combat.out.dedup.ord %>% 
+  column_to_rownames("Geneid") %>% 
+  as.matrix()
+
 dat <- DGEList(
   #count table
-  # Note that if you did not do batch correction, you may need to 
-  # move gene names from a variable in the df to rownames
-  counts=as.matrix(count.filter.pc.combat.out.dedup.ord),
+  counts=count.filter.pc.combat.out.dedup.ord.mat,
   #metadata
   samples=meta.filter.out.dedup.ord,
   #gene info
-  genes=key.filter)
+  genes=key.filter.ord)
+```
+
+Or similarly for the version without batch correction or duplicate library removal. We call this other output `dat2`.
+
+```{r}
+#Order metadata by library ID
+meta.filter.out.ord <- meta.filter.out %>% 
+  arrange(libID)
+
+#Order counts by library ID and gene ID
+count.filter.pc.out.ord <- count.filter.pc.out %>% 
+  select(1, all_of(meta.filter.out.ord$libID)) %>% 
+  arrange(Geneid)
+
+#Order gene key by gene ID
+key.filter.ord <- key.filter %>% 
+  arrange(ensembl_gene_id)
+
+#check libraries
+identical(meta.filter.out.ord$libID,
+          colnames(count.filter.pc.out.ord)[-1])
+
+#Check genes
+identical(key.filter.ord$ensembl_gene_id,
+          count.filter.pc.out.ord$Geneid)
+```
+
+```{r}
+# Move gene names from a variable in the df to rownames and format to matrix
+count.filter.pc.out.ord.mat <- 
+  count.filter.pc.out.ord %>% 
+  column_to_rownames("Geneid") %>% 
+  as.matrix()
+
+dat2 <- DGEList(
+  #count table
+  counts=count.filter.pc.out.ord.mat,
+  #metadata
+  samples=meta.filter.out.ord,
+  #gene info
+  genes=key.filter.ord)
 ```
 
 ## 2.7: Filter low abundance genes
@@ -452,12 +541,17 @@ Our goal is to remove genes in the lower left of the mean-variance plot because 
 BIGpicture::plot_mv(dat, design = "~ virus")
 ```
 
-We use our custom function to retain only genes that are at least `min.CPM` counts per million in at least `min.sample` number of samples OR in at least `min.pct` percent of samples. Here, we use 0.1 CPM in at least 3 samples.
+We use our custom function to retain only genes that are at least `min.CPM` counts per million in at least `min.sample` number of samples OR in at least `min.pct` percent of samples. Here, we use 0.1 CPM in at least 3 samples. 
 
 ```{r}
 dat.abund <- RNAetc::filter_rare(dat, min.CPM = 0.1, min.sample = 3,
                                  gene.var="ensembl_gene_id")
+
+dat2.abund <- RNAetc::filter_rare(dat2, min.CPM = 0.1, min.sample = 3,
+                                 gene.var="ensembl_gene_id")
 ```
+
+This yields slightly different results for the two versions of the data. We visualize just `dat` here.
 
 Plotting the filtered data, we see the red trend line no longer curves down on the left. There is still a bit of the downward tail of dots but this filtering is sufficient.
 
@@ -511,6 +605,7 @@ The calculated scaling factors are then applied to the counts table automaticall
 
 ```{r tmm}
 dat.abund.norm <- calcNormFactors(dat.abund, method = "TMM")
+dat2.abund.norm <- calcNormFactors(dat2.abund, method = "TMM")
 ```
 
 ## 3.2: voom aka log2 counts per million (CPM)
@@ -533,11 +628,82 @@ ggplot() +
 ```{r voom, fig.height=3.5}
 dat.abund.norm.voom <- voomWithQualityWeights(
                            dat.abund.norm,
-                           design=model.matrix(~ virus, data=dat.abund.norm$samples),
+                           design=model.matrix(~ virus, 
+                                               data=dat.abund.norm$samples),
+                           plot=TRUE)
+
+dat2.abund.norm.voom <- voomWithQualityWeights(
+                           dat2.abund.norm,
+                           design=model.matrix(~ virus,
+                                               data=dat2.abund.norm$samples),
                            plot=TRUE)
 ```
 
-# 4. Summary and save
+# 4. limma removeBatchEffect {#limma_batch2}
+## 4.1: Correct batch effects
+
+Now, we return to batch correction. You should only complete this section on data that *were not* batch corrected by ComBat-Seq ([Section 2.3.1](#section2_3_1)) and *did not* have duplicates removed ([Section 2.5](#section2_5)). In this tutorial, this is `dat2.abund.norm.voom`.
+
+With your uncorrected voom object, regress out batch effects with a linear model in `removeBatchEffect` including
+
+* `batch`: the variable denoting batches
+* `covar`: additional numeric co-variates to correct for (*not used here*)
+    - You can use this function to correct for variables other than batch
+* `design`: model matrix with the main effects and co-variates you want to retain signal for. , in this case sex
+    - These are variables you want to retain in our later linear models. This ensures that we don't over-correct the data and lose our biological signals of interest.
+    - Comparable to ComBat-Seq's `group` + `covar` variables
+
+```{r}
+voom.removeBatch <- removeBatchEffect(
+  dat2.abund.norm.voom,
+  batch = dat2.abund.norm.voom$targets$batch,
+  design = model.matrix(~ virus + sex, data = dat2.abund.norm.voom$targets)
+)
+```
+
+Incorporate the batched corrected counts into a new voom object.
+
+```{r}
+dat2.abund.norm.voom.removeBatch <- dat2.abund.norm.voom
+dat2.abund.norm.voom.removeBatch$E <- voom.removeBatch
+```
+
+Visualize before and after batch correction. We see the batch effect is completely removed on PC2, though the duplicates still don't look great. A larger data set generally performs better.
+
+```{r}
+BIGpicture::plot_pca(dat2.abund.norm.voom$E, meta = meta.filter.dups,
+                     vars=c("batch","duplicate")) %>% 
+  wrap_plots(ncol=2)
+
+BIGpicture::plot_pca(dat2.abund.norm.voom.removeBatch$E, meta = meta.filter.dups,
+                     vars=c("batch","duplicate")) %>% 
+  wrap_plots(ncol=2)
+```
+
+## 4.2: Filter duplicate libraries
+
+Because this version skipped [Section 2.5](#section2_5), we now remove duplicate samples.
+
+```{r}
+#Using the name unique ID variables as seen in batch correction
+unique.ID
+
+dat2.abund.norm.voom.removeBatch.dedup <- dat2.abund.norm.voom.removeBatch
+
+#Find libraries with highest seqs
+dat2.abund.norm.voom.removeBatch.dedup$targets <-
+  dat2.abund.norm.voom.removeBatch.dedup$targets %>% 
+  group_by_at(unique.ID) %>% 
+  slice_max(order_by = QC_pass)
+
+#Filter lower seq libraries
+dat2.abund.norm.voom.removeBatch.dedup$E <- 
+  as.data.frame(dat2.abund.norm.voom.removeBatch.dedup$E) %>% 
+  select(all_of(dat2.abund.norm.voom.removeBatch.dedup$targets$libID)) %>% 
+  as.matrix()
+```
+
+# 5. Summary and save
 #### Filtering
 
 The following summarizes libraries removed from analysis. In this tutorial, all libraries pass-filter and move on to analysis.
@@ -569,22 +735,13 @@ meta %>%
   select(libID, filter)
 ```
 
-#### PCA
-
-To get an initial sense of the cleaning data, we plot all our variables of interest as well as double-check any potential outliers. Here, we see a clear viral stimulation signal, some lingering batch effects, and no outliers.
-
-```{r pca_final, fig.height=7.5}
-plot_pca(dat.abund.norm.voom, vars = c("virus","ptID","sex","batch","outlier")) %>% 
-  wrap_plots(ncol=2)
-```
-
 #### Save
 
 Write as `RData`
 
 ```{r}
-save(dat.abund.norm, file = "data_clean/dat.RData")
-save(dat.abund.norm.voom, file = "data_clean/voom.RData")
+save(dat.abund.norm, file = "data_clean/dat_combat.RData")
+save(dat.abund.norm.voom, file = "data_clean/voom_combat.RData")
 ```
 
 Write counts as `csv`
@@ -592,11 +749,37 @@ Write counts as `csv`
 ```{r}
 as.data.frame(dat.abund.norm$counts) %>% 
   rownames_to_column("ensembl_gene_id") %>% 
-  write_csv("data_clean/counts.csv")
+  write_csv("data_clean/counts_combat.csv")
 
 as.data.frame(dat.abund.norm.voom$E) %>% 
   rownames_to_column("ensembl_gene_id") %>% 
-  write_csv("data_clean/counts_voom.csv")
+  write_csv("data_clean/counts_voom_combat.csv")
+```
+
+And similarly for the limma batch corrected data. We rename the object so either version can be used in downstream tutorials.
+
+```{r}
+dat.abund.norm <- dat2.abund.norm
+dat.abund.norm.voom <- dat2.abund.norm.voom.removeBatch.dedup
+```
+
+Write as `RData`
+
+```{r}
+save(dat.abund.norm, file = "data_clean/dat_limma.RData")
+save(dat.abund.norm.voom, file = "data_clean/voom_limma.RData")
+```
+
+Write counts as `csv`
+
+```{r}
+as.data.frame(dat.abund.norm$counts) %>% 
+  rownames_to_column("ensembl_gene_id") %>% 
+  write_csv("data_clean/counts_limma.csv")
+
+as.data.frame(dat.abund.norm.voom$E) %>% 
+  rownames_to_column("ensembl_gene_id") %>% 
+  write_csv("data_clean/counts_voom_limma.csv")
 ```
 
 # R session
