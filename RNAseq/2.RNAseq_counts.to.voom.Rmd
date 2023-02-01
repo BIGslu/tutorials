@@ -371,14 +371,24 @@ Even if you have measurable batch effects, you may not wish to perform batch cor
 * How strong are the batch effects? This can be roughly estimated based on the PC to which the batch variable best aligns. In the above data, this is PC2 which explains a substantial percent of variation (17%). Thus, the batch effects are also likely substantial. If the batch PC explains only a small amount of variation, you may wish to skip batch correction as the effects were minimal.
 * Does batch correction improve the PCA? After running batch correction, you may not see much improvement in the PCA. Thus, this method did not improve your data and you will likely need to include batch in your models and carefully consider any genes of interest that are also significant for batch.
 
-## 2.4: Filter PCA outliers
+## 2.4: Filter PCA outliers {#section2_4}
 
-Sometimes one or more libraries will appear as outliers in PCA. We define this as any library more than 3 standard deviations away from the mean on PC1 and/or PC2. Here, we have no outliers.
+Sometimes one or more libraries will appear as outliers in PCA. We define this as any library more than 3 standard deviations away from the mean on PC1 and/or PC2. 
+
+The two PCA plots show scaled and unscaled values (see `?prcomp` for details). Generally, scaled values are preferred but the unnormalized counts tend to look weird in scaled PCA as they group but sequencing depth and/or quality. Thus, we usually only consider outliers in the unscaled plot.
+
+Here, we have no outliers.
 
 ```{r PCA3}
-pca3 <- BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter, 
-                     vars="outlier", transform_logCPM=TRUE)
-pca3
+pca3a <- BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter, 
+                     vars="outlier", transform_logCPM=TRUE,
+                     scale = FALSE)
+pca3b <- BIGpicture::plot_pca(count.filter.pc.combat, meta=meta.filter, 
+                     vars="outlier", transform_logCPM=TRUE,
+                     scale = TRUE)
+
+pca3a$outlier + labs(title = "Uncaled PCA") +
+  pca3b$outlier + labs(title = "Scaled PCA")
 ```
 
 You may define outliers at a more or less strict level (`outlier_sd`) or wish to determine them separately within each group of interest (`outlier_group`). For example here, there is one outlier more than 1.5 sd away from the mean within batch but this cutoff is much stricter than we recommend.
@@ -394,7 +404,7 @@ We recommend that you initially remove dramatic outliers but leave those that ar
 If outlier libraries need to be removed, you can use the following code to do so.
 
 ```{r}
-not.outlier <- pca3$outlier$data %>% 
+not.outlier <- pca3a$outlier$data %>% 
   filter(col.group == "no")
 
 meta.filter.out <- meta.filter %>% 
@@ -407,7 +417,7 @@ count.filter.pc.combat.out <- count.filter.pc.combat %>%
 If you did not complete ComBat-Seq batch correction, the following code completes the PCA outlier filtering. (Just remove `combat` from the count object names.)
 
 ```{r}
-not.outlier <- pca3$outlier$data %>% 
+not.outlier <- pca3a$outlier$data %>% 
   filter(col.group == "no")
 
 meta.filter.out <- meta.filter %>% 
@@ -737,6 +747,24 @@ meta %>%
   #Add pass filter label
   mutate(filter = ifelse(filter=="","pass-filter",filter)) %>% 
   select(libID, filter)
+```
+
+#### Re-check PCA outliers
+
+Re-assess PCA outliers. Some new samples may pop up after normalization but unless they are very clearly outliers, you should leave them in the data set. Also note that the unscaled and scaled PCA look much more similar after normalization. This is expected and we will use the scaled PCA in all future analyses.
+
+You can also use this section to check if outliers identified in [Section 2.4](#section2_4) remain outliers when you leave them in the data at that stage. Simply return to that section and comment out `filter(col.group == "no")` then run all subsequent steps.
+
+```{r PCA5}
+pca5a <- BIGpicture::plot_pca(dat.abund.norm.voom, 
+                     vars="outlier",
+                     scale = FALSE)
+pca5b <- BIGpicture::plot_pca(dat.abund.norm.voom, 
+                     vars="outlier",
+                     scale = FALSE)
+
+pca5a$outlier + labs(title = "Uncaled PCA") + 
+  pca5b$outlier + labs(title = "Scaled PCA")
 ```
 
 #### Save
