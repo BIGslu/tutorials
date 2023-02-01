@@ -94,12 +94,13 @@ picard <- kimma::example.seasnake$picard
 Next, we read in and combine any patient and/or sample metadata. You may have only one of these data types. In general, patient data include things like age, sex, and any variable that is assigned to each person in the study. In contrast, sample data are variables assigned to each library, like experimental treatment, quality, etc. We combine these along with the above metrics tables to make a single data frame with all metadata.
 
 ```{r}
-patient <- kimma::example.seasnake$patient
+patient <- kimma::example.seasnake$patient %>% 
+  mutate(asthma = fct_relevel(factor(asthma), "healthy", after = 0)) 
 sample <- kimma::example.seasnake$sample %>% 
   #format any variables that need to be factors
   #Or any other additional formatting that you desire on your data
-  mutate(virus = fct_relevel(factor(virus), ref="none")) %>% 
-  mutate(asthma = fct_relevel(factor(virus), ref="healthy"))
+  mutate(virus = fct_relevel(factor(virus), "none", after = 0)) %>% 
+  mutate(batch = factor(batch))
 
 meta <- full_join(sample, patient, by = "ptID") %>% 
   full_join(flagstat, by = "libID") %>% 
