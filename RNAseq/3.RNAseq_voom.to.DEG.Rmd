@@ -427,6 +427,63 @@ In your data, you may have co-variates that are not as clear as this. In that ca
 
 You may also have non-statistical evidence for including a co-variate. If you have established biological evidence that a co-variate is important in your system or it's standard in your field, you may wish to include it even if it does not improve fit and is not significant. If the co-variate, however, greatly worsens fit, you should not include it even if it's standard. Instead, present fit plots like above to support its exclusion.
 
+#### Assessing many co-variates at once
+
+As shown earlier, PCA is often used to assessed co-variate effects on gene expression. Another way to visualize this (and an easier way when you have a lot of variables) is to make a heatmap of correlations to PCs. This works best for numeric co-variates but can also be roughly applied to categorical variables if they are converted to numeric levels (like 1, 2). Categorical variables with more than two levels are difficult to interpret by this method since the ordering (1,2,3 vs 1,3,2 etc) can give different results. However, than can technically still be run in correlation.
+
+First, we correlate numeric and converted categorical variables to PCA with Pearson's correlation.
+
+```{r}
+#Extract PCA values from first PCA under the ~virus model (2.1)
+pca.dat <- pca1$virus$data %>% 
+  # convert 2 level categoricals
+  mutate(across(c(virus, asthma, batch, ptID), ~as.numeric(as.factor(.)))) %>% 
+  # select var of interest
+  select(PC1:PC12, lib.size, median_cv_coverage, virus, asthma, batch, ptID)
+  
+pca.corr <- cor(pca.dat, method = "pearson") %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  #Remove PCs from rows
+  filter(!grepl("^PC[0-9]{1,2}$", rowname)) %>% 
+  #Remove everything else from columns
+  select(rowname, starts_with("PC")) %>% 
+  column_to_rownames() %>% 
+  as.matrix()
+```
+
+Visualizing this in a heatmap, we see that our main variable of interest (virus) most strongly correlates to PC2. This PC is also correlated with batch which further underscores the importance of testing this variable in linear models. In addition, PC1 is related to technical variables such as median CV coverage and biological variables like asthma. Given that the technical variables are on a highly explanatory PC, this result indicates that they should be explored for model fit similar to batch as above.
+
+```{r}
+ComplexHeatmap::Heatmap(pca.corr, 
+                        name = "Pearson (R)", 
+                        cluster_columns = FALSE)
+```
+
+*Note that ptID does not have a directly interpretable R value, because it is a six level factor and does not logically convert to numeric.*
+
+Another method for correlating categorical variable to PCs in through `pvca`, which performs mixed models and determines the percent of PC variation that is explained by each variable.
+
+Here, we test the previously "converted to numeric" variables of virus, asthma, batch, and ptID. This is a better method for ptID in particular, because it has more than two levels.
+
+```{r}
+dat.pvca <- dat$targets %>% 
+  select(ptID, virus, asthma, batch)
+
+pvca.corr <- pvca::PVCA(counts = dat$E,
+           meta = dat.pvca,
+           threshold = 1,
+           inter = FALSE)
+```
+
+The package has its own integrated plotting function. We see that the majority of variation (38.7%) is not explained by any of the provided variables (`resid`). The next most explanatory variable is patient ID (`ptID`) at 31.8%. As you'll see in the next section, this effect is likely due to the paired sample design and will be accounted for in a linear mixed effects model. Continuing down, we see virus, asthma, and then batch in explanatory power. This indicates that maybe batch isn't as impactful of a co-variate as we originally thought, though often you will consider all co-variates that explain > 1% of variation.
+
+```{r}
+PlotPVCA(pvca.corr, title = "")
+```
+
+These methods in addition to model fit assessment will help you in determining co-variates to include in your model. It is both an art and a science as you must take into account prior knowledge and statistics in your choices. In the end, sometimes you have to make a arbitrary choice if the results are not conclusive one way or the other.
+
 # 3. Linear mixed effects model
 ## 3.1: Random effects (ptID)
 
@@ -452,6 +509,7 @@ Random effects are added to the model with `+ (1|block)` where the block is the 
 ~ virus*asthma + (1|ptID)
 ```
 
+In `kimma`, this is run similarly to a simple model except we add our random term and ask it to `run_lme`.
 
 ```{r eval=FALSE}
 virus_lme <- kmFit(dat = dat, 
