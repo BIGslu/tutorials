@@ -41,6 +41,11 @@ BiocManager::install(c("edgeR", "limma", "patchwork"))
 #GitHub packages
 install.packages("devtools")
 devtools::install_github("BIGslu/BIGverse")
+#Or if fails, install packages individually
+devtools::install_github("BIGslu/kimma")
+devtools::install_github("BIGslu/BIGpicture")
+devtools::install_github("BIGslu/RNAetc")
+devtools::install_github("BIGslu/SEARchways")
 ```
 
 And load them into your current R session.
@@ -79,8 +84,8 @@ First, we determine genes associated with viral infection and/or asthma in this 
 ```{r}
 virus_lme <- kmFit(dat = dat, 
                    model = "~ virus*asthma + (1|ptID)", 
-                   run.lme = TRUE, 
-                   use.weights = TRUE)
+                   run_lme = TRUE, 
+                   use_weights = TRUE)
 ```
 
 ## 2.1 Hypergeometric enrichment
@@ -135,7 +140,7 @@ We can easily plot this result in `BIGpicture`. We'll use FDR < 0.5 so you can s
 
 ```{r}
 plot_enrich(enrich.virus, 
-            fdr.cutoff = 0.5, fdr.colors = c(0.05, 0.5))
+            fdr_cutoff = 0.5, fdr_colors = c(0.05, 0.5))
 ```
 
 You can also look at multiple variables by inputing a data frame (`gene_df`) with the variable in 1 column and the significant genes in another. Note that the plot shows non-significant results for one variable or the other. This can be turned off with `show.overlap = FALSE`.
@@ -151,7 +156,7 @@ enrich.all <- BIGprofiler(gene_df = gene_df,
                           category = "H")
 
 plot_enrich(enrich.all, 
-            fdr.cutoff = 0.5, fdr.colors = c(0.05, 0.5))
+            fdr_cutoff = 0.5, fdr_colors = c(0.05, 0.5))
 ```
 
 #### What about directionality?
@@ -226,7 +231,7 @@ Similarly, we can plot the GSEA results with `BIGpicture`. Until simple enrichme
 
 ```{r}
 plot_gsea(gsea.all,
-          fdr.cutoff = 0.2)
+          fdr_cutoff = 0.2)
 ```
 
 ### What if I have more than 2 groups to compare?
@@ -255,14 +260,16 @@ fit <- fit_modules(dat = kimma::example.voom,
                    networkType = "signed",
                    nThread = 4)
 
-mod.p14 <- make_modules(fit,
-                        sft.value = 14, 
-                        minModuleSize = 20, 
-                        maxBlockSize = 500, 
-                        deepSplit = 2,
-                        networkType = "signed", 
-                        mods.mean = TRUE, mods.eigen = TRUE, david = TRUE,
-                        nThread = 4)
+mod.p14 <- make_modules(
+  fit,
+  sft.value = 14, 
+  minModuleSize = 20, 
+  maxBlockSize = 500, 
+  deepSplit = 2,
+  networkType = "signed", 
+  mods_mean = TRUE, mods_eigen = TRUE, 
+  david = TRUE,
+  nThread = 4)
 ```
 
 The `SEARchways` function can be applied to module results from `RNAetc` like so.
@@ -282,8 +289,8 @@ enrich.mod <- BIGprofiler(gene_df = mod_df,
                           ID = "ENSEMBL",
                           category = "H")
 
-plot_enrich(enrich.mod, fdr.cutoff = 0.2,
-            show.overlap = FALSE)
+plot_enrich(enrich.mod, fdr_cutoff = 0.2,
+            show_overlap = FALSE)
 ```
 
 # 4. STRING networks
@@ -299,7 +306,7 @@ For example, we plot the virus significant genes and color by significant hyperg
 map <- map_string(genes = genes.virus)
 #plot
 plot_string(map = map,
-            enrichment = enrich.virus, fdr.cutoff = 0.05)
+            enrichment = enrich.virus, fdr_cutoff = 0.05)
 ```
 
 ### Using other gene identifiers 
@@ -348,7 +355,7 @@ Then we can re-make the network.
 map <- map_string(genes = genes.virus.hgnc)
 #plot
 plot_string(map = map,
-            enrichment = enrich.virus.hgnc, fdr.cutoff = 0.05)
+            enrichment = enrich.virus.hgnc, fdr_cutoff = 0.05)
 ```
 
 ## 4.2 Customizing networks
@@ -357,8 +364,8 @@ This network is pretty big so let's cut if down to just genes with at least 1 co
 
 ```{r fig.height=8}
 plot_string(map = map,
-            enrichment = enrich.virus.hgnc, fdr.cutoff = 0.05,
-            discard = "orphan")
+            enrichment = enrich.virus.hgnc, fdr_cutoff = 0.05,
+            edge_min = 1)
 ```
 
 The pathway names aren't nicely formatted so we could change them in the enrichment results.
@@ -369,16 +376,16 @@ enrich.virus.hgnc.format <- enrich.virus.hgnc %>%
          pathway = gsub("_"," ",pathway))
 
 plot_string(map = map,
-            enrichment = enrich.virus.hgnc.format, fdr.cutoff = 0.05,
-            discard = "orphan")
+            enrichment = enrich.virus.hgnc.format, fdr_cutoff = 0.05,
+            edge_min = 1)
 ```
 
 Or we could look at just nodes with no connections (i.e. orphans). We also use a non-default layout for this visualization.
 
 ```{r fig.height=8}
 plot_string(map = map,
-            enrichment = enrich.virus.hgnc.format, fdr.cutoff = 0.05,
-            discard = "cluster",
+            enrichment = enrich.virus.hgnc.format, fdr_cutoff = 0.05,
+            edge_max = 0,
             layout = "grid")
 ```
 
@@ -398,8 +405,8 @@ gsea.virus.hgnc <- gsea.all %>%
   summarise(leadingEdge = list(hgnc_symbol), .groups = "drop")
 
 plot_string(map = map,
-            enrichment = gsea.virus.hgnc, fdr.cutoff = 0.2,
-            discard = "orphan")
+            enrichment = gsea.virus.hgnc, fdr_cutoff = 0.2,
+            edge_min = 1)
 ```
 
 Note that fewer genes are colored in the GSEA network. This is because GSEA identifies the leading edge only. Thus, you can have genes in your network that are annotated to a significant GSEA pathway but not colored because they were not leading edge in your comparison of interest.

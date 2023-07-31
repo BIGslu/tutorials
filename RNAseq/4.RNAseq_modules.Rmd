@@ -42,6 +42,11 @@ BiocManager::install(c("edgeR", "limma", "patchwork"))
 #GitHub packages
 install.packages("devtools")
 devtools::install_github("BIGslu/BIGverse")
+#Or if fails, install packages individually
+devtools::install_github("BIGslu/kimma")
+devtools::install_github("BIGslu/BIGpicture")
+devtools::install_github("BIGslu/RNAetc")
+devtools::install_github("BIGslu/SEARchways")
 ```
 
 And load them into your current R session.
@@ -84,8 +89,8 @@ First, we determine genes associated with viral infection and/or asthma in this 
 ```{r}
 virus_lme <- kmFit(dat = dat, 
                    model = "~ virus*asthma + (1|ptID)", 
-                   run.lme = TRUE, 
-                   use.weights = TRUE)
+                   run_lme = TRUE, 
+                   use_weights = TRUE)
 ```
 
 We extract genes significant for the interaction term as well as those significant for virus or asthma alone.
@@ -342,8 +347,8 @@ We run a linear mixed effects model just like in Section 2, only now we give the
 virus_mod <- kmFit(counts = mod.E,
                    meta = dat.subset$targets,
                    model = "~ virus*asthma + (1|ptID)", 
-                   run.lme = TRUE, 
-                   use.weights = FALSE)
+                   run_lme = TRUE, 
+                   use_weights = FALSE)
 ```
 
 We see that all modules are significant for virus and/or asthma, though none are signifcant for the interaction.
@@ -358,8 +363,8 @@ Thus, in a true analysis, we would remove the interaction in our final model.
 virus_mod2 <- kmFit(counts = mod.E,
                    meta = dat.subset$targets,
                    model = "~ virus + asthma + (1|ptID)", 
-                   run.lme = TRUE, 
-                   use.weights = FALSE)
+                   run_lme = TRUE, 
+                   use_weights = FALSE)
 ```
 
 ```{r}
