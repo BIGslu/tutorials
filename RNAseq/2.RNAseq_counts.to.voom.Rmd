@@ -242,6 +242,15 @@ key.filter <- key %>%
   summarise(symbol = list(unique(hgnc_symbol)), .groups = "drop")
 ```
 
+Then, we filter the count table to genes in the protein-coding key.
+
+```{r}
+count.filter.pc <- count.filter %>% 
+  filter(Geneid %in% key.filter$ensembl_gene_id)
+```
+
+This removes `r nrow(count.filter)-nrow(count.filter.pc)` genes from this data set. These data were pre-filtered so you will see A LOT more genes removed in this step in your data. In the current human genome (GRCh38 release 106), there are `r nrow(key)` protein-coding genes, of which `r nrow(count.filter.pc)` were found in this data set.
+
 For mouse (not run here):
 
 ```{r ensembl2, eval=FALSE}
@@ -267,15 +276,6 @@ key.filter <- key %>%
            chromosome_name, start_position, end_position) %>% 
   summarise(symbol = list(unique(mgi_symbol)), .groups = "drop")
 ```
-
-Then, we filter the count table to genes in the protein-coding key.
-
-```{r}
-count.filter.pc <- count.filter %>% 
-  filter(Geneid %in% key.filter$ensembl_gene_id)
-```
-
-This removes `r nrow(count.filter)-nrow(count.filter.pc)` genes from this data set. These data were pre-filtered so you will see A LOT more genes removed in this step in your data. In the current human genome (GRCh38 release 106), there are `r nrow(key)` protein-coding genes, of which `r nrow(count.filter.pc)` were found in this data set.
 
 ## 2.3: Correct batch effects {#section2_3}
 
