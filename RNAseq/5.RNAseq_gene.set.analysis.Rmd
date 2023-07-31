@@ -193,21 +193,6 @@ enrich.all <- read_csv("results/BIGprofiler.results.csv") %>%
   summarise(genes = list(genes), .groups = "drop")
 ```
 
-### `BIGenrichr`
-
-The other enrichment function in `SEARchways` is `BIGenrichr`, which runs a similar test but through the `enrichr` package and gene set data bases.
-
-```{r fig.height=3}
-enrich.virus2 <- BIGenrichr(gene_list = list("virus" = genes.virus),
-                          ID = "ENSEMBL",
-                          dbs = "MSigDB_Hallmark_2020")
-
-plot_enrich(enrich.virus2$MSigDB_Hallmark_2020, 
-            fdr.cutoff = 0.5, fdr.colors = c(0.05, 0.5))
-```
-
-You will notice a lot more gene sets in the `enrichr` results. This package uses a slightly different statistic than `clusterProfiler` so you are likely to see different results, particularly at high FDR. For more information see <https://maayanlab.cloud/Enrichr/>
-
 ## 2.2 Gene set enrichment analysis (GSEA)
 
 Another gene set related analysis is GSEA. This method uses fold change values of *all* genes in the data set instead of having you pre-define a significant list of genes. GSEA, thus, can find significant pathways with no individually significant genes in them. Instead, smaller up (or down) regulations of many genes can drive overall significance of a pathway.
