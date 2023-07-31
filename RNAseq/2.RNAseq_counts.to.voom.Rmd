@@ -40,8 +40,13 @@ BiocManager::install(c("edgeR", "limma", "biomaRt", "patchwork"))
 
 #GitHub packages
 install.packages("devtools")
-devtools::install_github("BIGslu/BIGverse")
 devtools::install_github("zhangyuqing/sva-devel")
+devtools::install_github("BIGslu/BIGverse")
+#Or if fails, install packages individually
+devtools::install_github("BIGslu/kimma")
+devtools::install_github("BIGslu/BIGpicture")
+devtools::install_github("BIGslu/RNAetc")
+devtools::install_github("BIGslu/SEARchways")
 ```
 
 And load them into your current R session.
@@ -558,10 +563,10 @@ BIGpicture::plot_mv(dat, design = "~ virus")
 We use our custom function to retain only genes that are at least `min.CPM` counts per million in at least `min.sample` number of samples OR in at least `min.pct` percent of samples. Here, we use 0.1 CPM in at least 3 samples. 
 
 ```{r}
-dat.abund <- RNAetc::filter_rare(dat, min.CPM = 0.1, min.sample = 3,
+dat.abund <- RNAetc::filter_rare(dat, min_CPM = 0.1, min.sample = 3,
                                  gene.var="ensembl_gene_id")
 
-dat2.abund <- RNAetc::filter_rare(dat2, min.CPM = 0.1, min.sample = 3,
+dat2.abund <- RNAetc::filter_rare(dat2, min_CPM = 0.1, min.sample = 3,
                                  gene.var="ensembl_gene_id")
 ```
 
@@ -761,9 +766,9 @@ pca5a <- BIGpicture::plot_pca(dat.abund.norm.voom,
                      scale = FALSE)
 pca5b <- BIGpicture::plot_pca(dat.abund.norm.voom, 
                      vars="outlier",
-                     scale = FALSE)
+                     scale = TRUE)
 
-pca5a$outlier + labs(title = "Uncaled PCA") + 
+pca5a$outlier + labs(title = "Unscaled PCA") + 
   pca5b$outlier + labs(title = "Scaled PCA")
 ```
 
