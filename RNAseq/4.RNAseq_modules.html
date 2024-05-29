@@ -1487,7 +1487,7 @@ font-size: 0.95em;
 <h1 class="title toc-ignore">RNA-seq data analysis</h1>
 <h3 class="subtitle">Co-expression modules (WGCNA)</h3>
 <h4 class="author">Kim Dill-McFarland, <a href="mailto:kadm@uw.edu" class="email">kadm@uw.edu</a></h4>
-<h4 class="date">version June 02, 2023</h4>
+<h4 class="date">version May 29, 2024</h4>
 
 </div>
 
@@ -1525,19 +1525,19 @@ devtools::install_github(&quot;BIGslu/SEARchways&quot;)</code></pre>
 <p>And load them into your current R session.</p>
 <pre class="r"><code>library(tidyverse)</code></pre>
 <pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-## ✔ dplyr     1.1.2     ✔ readr     2.1.4
-## ✔ forcats   1.0.0     ✔ stringr   1.5.0
-## ✔ ggplot2   3.4.2     ✔ tibble    3.2.1
-## ✔ lubridate 1.9.2     ✔ tidyr     1.3.0
-## ✔ purrr     1.0.1     
+## ✔ dplyr     1.1.4     ✔ readr     2.1.5
+## ✔ forcats   1.0.0     ✔ stringr   1.5.1
+## ✔ ggplot2   3.5.1     ✔ tibble    3.2.1
+## ✔ lubridate 1.9.3     ✔ tidyr     1.3.1
+## ✔ purrr     1.0.2     
 ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
 ## ✖ dplyr::filter() masks stats::filter()
 ## ✖ dplyr::lag()    masks stats::lag()
 ## ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
 <pre class="r"><code>library(BIGverse)</code></pre>
 <pre><code>## ── Attaching packages ──────────────────────────────────────── BIGverse 1.0.0 ──
-## ✔ kimma      1.5.0     ✔ BIGpicture 1.1.0
-## ✔ RNAetc     1.1.0     ✔ SEARchways 1.1.0
+## ✔ kimma      1.6.1     ✔ BIGpicture 1.1.0
+## ✔ RNAetc     1.1.0     ✔ SEARchways 1.3.2
 ## ── Conflicts ─────────────────────────────────────────── BIGverse_conflicts() ──
 ## ✖ dplyr::filter() masks stats::filter()
 ## ✖ dplyr::lag()    masks stats::lag()</code></pre>
@@ -1660,7 +1660,7 @@ expression values have meaning.</p>
 <pre class="r"><code># You may wish to run on multiple processors
 # WGCNA::allowWGCNAThreads(nThreads = 4)
 
-fit &lt;- pickSoftThreshold(data = t(dat$E),
+fit &lt;- pickSoftThreshold(data = t(dat.subset$E),
                          powerVector = c(1:30),
                          networkType = &quot;signed&quot;)</code></pre>
 <pre><code>##    Power   SFT.R.sq     slope truncated.R.sq    mean.k.   median.k.    max.k.
@@ -2002,13 +2002,13 @@ thus, <code>use.weights = FALSE</code>.</p>
 though none are signifcant for the interaction.</p>
 <pre class="r"><code>summarise_kmFit(virus_mod$lme)</code></pre>
 <pre><code>## # A tibble: 5 × 7
-##   variable             fdr_0.05 fdr_0.1 fdr_0.2 fdr_0.3 fdr_0.4 fdr_0.5
-##   &lt;fct&gt;                   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;
-## 1 (1 | ptID)                 NA       1       2       7       7       8
-## 2 asthma                      4       5       5       6       6       8
-## 3 virus                       7       8       8       8       8       9
-## 4 virus:asthma               NA      NA      NA      NA      NA       8
-## 5 total (nonredundant)        8       8       8       9       9       9</code></pre>
+##   variable          `fdr&lt;0.05` `fdr&lt;0.1` `fdr&lt;0.2` `fdr&lt;0.3` `fdr&lt;0.4` `fdr&lt;0.5`
+##   &lt;fct&gt;                  &lt;int&gt;     &lt;int&gt;     &lt;int&gt;     &lt;int&gt;     &lt;int&gt;     &lt;int&gt;
+## 1 (1 | ptID)                 0         1         2         7         7         8
+## 2 asthma                     4         5         5         6         6         8
+## 3 virus                      7         8         8         8         8         9
+## 4 virus:asthma               0         0         0         0         0         8
+## 5 total (nonredund…          8         8         8         9         9         9</code></pre>
 <p>Thus, in a true analysis, we would remove the interaction in our
 final model.</p>
 <pre class="r"><code>virus_mod2 &lt;- kmFit(counts = mod.E,
@@ -2023,12 +2023,12 @@ final model.</p>
 <pre><code>## Failed: 0 genes</code></pre>
 <pre class="r"><code>summarise_kmFit(virus_mod2$lme)</code></pre>
 <pre><code>## # A tibble: 4 × 7
-##   variable             fdr_0.05 fdr_0.1 fdr_0.2 fdr_0.3 fdr_0.4 fdr_0.5
-##   &lt;fct&gt;                   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;   &lt;int&gt;
-## 1 (1 | ptID)                  1       1       2       7       7       8
-## 2 asthma                      4       5       5       6       6       8
-## 3 virus                       7       8       8       8       8       9
-## 4 total (nonredundant)        8       8       8       9       9       9</code></pre>
+##   variable          `fdr&lt;0.05` `fdr&lt;0.1` `fdr&lt;0.2` `fdr&lt;0.3` `fdr&lt;0.4` `fdr&lt;0.5`
+##   &lt;fct&gt;                  &lt;int&gt;     &lt;int&gt;     &lt;int&gt;     &lt;int&gt;     &lt;int&gt;     &lt;int&gt;
+## 1 (1 | ptID)                 1         1         2         7         7         8
+## 2 asthma                     4         5         5         6         6         8
+## 3 virus                      7         8         8         8         8         9
+## 4 total (nonredund…          8         8         8         9         9         9</code></pre>
 </div>
 </div>
 <div id="rnaetc-custom-module-functions" class="section level1">
@@ -2146,61 +2146,64 @@ set analyses</a> tutorial for methods to assign function to modules.</p>
 <div id="r-session" class="section level1">
 <h1>R session</h1>
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>## R version 4.2.1 (2022-06-23)
-## Platform: x86_64-apple-darwin17.0 (64-bit)
-## Running under: macOS Big Sur ... 10.16
+<pre><code>## R version 4.4.0 (2024-04-24)
+## Platform: aarch64-apple-darwin20
+## Running under: macOS Sonoma 14.2.1
 ## 
 ## Matrix products: default
-## BLAS:   /Library/Frameworks/R.framework/Versions/4.2/Resources/lib/libRblas.0.dylib
-## LAPACK: /Library/Frameworks/R.framework/Versions/4.2/Resources/lib/libRlapack.dylib
+## BLAS:   /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRblas.0.dylib 
+## LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0
 ## 
 ## locale:
 ## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## time zone: America/Los_Angeles
+## tzcode source: internal
 ## 
 ## attached base packages:
 ## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## other attached packages:
-##  [1] WGCNA_1.72-1          fastcluster_1.2.3     dynamicTreeCut_1.63-1
-##  [4] patchwork_1.1.2       limma_3.54.2          SEARchways_1.1.0     
-##  [7] BIGpicture_1.1.0      RNAetc_1.1.0          kimma_1.5.0          
-## [10] BIGverse_1.0.0        lubridate_1.9.2       forcats_1.0.0        
-## [13] stringr_1.5.0         dplyr_1.1.2           purrr_1.0.1          
-## [16] readr_2.1.4           tidyr_1.3.0           tibble_3.2.1         
-## [19] ggplot2_3.4.2         tidyverse_2.0.0      
+##  [1] WGCNA_1.72-5          fastcluster_1.2.6     dynamicTreeCut_1.63-1
+##  [4] patchwork_1.2.0       limma_3.60.0          SEARchways_1.3.2     
+##  [7] BIGpicture_1.1.0      RNAetc_1.1.0          kimma_1.6.1          
+## [10] BIGverse_1.0.0        lubridate_1.9.3       forcats_1.0.0        
+## [13] stringr_1.5.1         dplyr_1.1.4           purrr_1.0.2          
+## [16] readr_2.1.5           tidyr_1.3.1           tibble_3.2.1         
+## [19] ggplot2_3.5.1         tidyverse_2.0.0      
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] bitops_1.0-7           matrixStats_0.63.0     bit64_4.0.5           
-##  [4] doParallel_1.0.17      httr_1.4.6             GenomeInfoDb_1.34.9   
-##  [7] backports_1.4.1        tools_4.2.1            bslib_0.4.2           
-## [10] utf8_1.2.3             R6_2.5.1               rpart_4.1.19          
-## [13] Hmisc_5.1-0            DBI_1.1.3              BiocGenerics_0.44.0   
-## [16] colorspace_2.1-0       nnet_7.3-19            withr_2.5.0           
-## [19] gridExtra_2.3          tidyselect_1.2.0       preprocessCore_1.60.2 
-## [22] bit_4.0.5              compiler_4.2.1         cli_3.6.1             
-## [25] Biobase_2.58.0         htmlTable_2.4.1        labeling_0.4.2        
-## [28] sass_0.4.6             checkmate_2.2.0        scales_1.2.1          
-## [31] digest_0.6.31          foreign_0.8-84         rmarkdown_2.22        
-## [34] XVector_0.38.0         base64enc_0.1-3        pkgconfig_2.0.3       
-## [37] htmltools_0.5.5        highr_0.10             fastmap_1.1.1         
-## [40] htmlwidgets_1.6.2      rlang_1.1.1            impute_1.72.3         
-## [43] rstudioapi_0.14        RSQLite_2.3.1          farver_2.1.1          
-## [46] jquerylib_0.1.4        generics_0.1.3         jsonlite_1.8.4        
-## [49] RCurl_1.98-1.12        magrittr_2.0.3         GO.db_3.16.0          
-## [52] GenomeInfoDbData_1.2.9 Formula_1.2-5          Matrix_1.5-4.1        
-## [55] Rcpp_1.0.10            munsell_0.5.0          S4Vectors_0.36.2      
-## [58] fansi_1.0.4            lifecycle_1.0.3        stringi_1.7.12        
-## [61] yaml_2.3.7             zlibbioc_1.44.0        grid_4.2.1            
-## [64] blob_1.2.4             parallel_4.2.1         crayon_1.5.2          
-## [67] lattice_0.21-8         Biostrings_2.66.0      splines_4.2.1         
-## [70] hms_1.1.3              KEGGREST_1.38.0        knitr_1.43            
-## [73] pillar_1.9.0           codetools_0.2-19       stats4_4.2.1          
-## [76] glue_1.6.2             evaluate_0.21          data.table_1.14.8     
-## [79] png_0.1-8              vctrs_0.6.2            tzdb_0.4.0            
-## [82] foreach_1.5.2          gtable_0.3.3           cachem_1.0.8          
-## [85] xfun_0.39              survival_3.5-5         iterators_1.0.14      
-## [88] AnnotationDbi_1.60.2   memoise_2.0.1          IRanges_2.32.0        
-## [91] cluster_2.1.4          timechange_0.2.0</code></pre>
+##  [1] DBI_1.2.2               gridExtra_2.3           rlang_1.1.3            
+##  [4] magrittr_2.0.3          matrixStats_1.3.0       compiler_4.4.0         
+##  [7] RSQLite_2.3.7           png_0.1-8               vctrs_0.6.5            
+## [10] pkgconfig_2.0.3         crayon_1.5.2            fastmap_1.2.0          
+## [13] backports_1.5.0         XVector_0.44.0          labeling_0.4.3         
+## [16] utf8_1.2.4              rmarkdown_2.27          tzdb_0.4.0             
+## [19] UCSC.utils_1.0.0        preprocessCore_1.66.0   bit_4.0.5              
+## [22] xfun_0.44               zlibbioc_1.50.0         cachem_1.1.0           
+## [25] GenomeInfoDb_1.40.0     jsonlite_1.8.8          blob_1.2.4             
+## [28] highr_0.11              parallel_4.4.0          cluster_2.1.6          
+## [31] R6_2.5.1                bslib_0.7.0             stringi_1.8.4          
+## [34] rpart_4.1.23            jquerylib_0.1.4         Rcpp_1.0.12            
+## [37] iterators_1.0.14        knitr_1.47              base64enc_0.1-3        
+## [40] IRanges_2.38.0          Matrix_1.7-0            splines_4.4.0          
+## [43] nnet_7.3-19             timechange_0.3.0        tidyselect_1.2.1       
+## [46] rstudioapi_0.16.0       yaml_2.3.8              doParallel_1.0.17      
+## [49] codetools_0.2-20        lattice_0.22-6          Biobase_2.64.0         
+## [52] withr_3.0.0             KEGGREST_1.44.0         evaluate_0.23          
+## [55] foreign_0.8-86          survival_3.6-4          Biostrings_2.72.0      
+## [58] pillar_1.9.0            checkmate_2.3.1         foreach_1.5.2          
+## [61] stats4_4.4.0            generics_0.1.3          S4Vectors_0.42.0       
+## [64] hms_1.1.3               munsell_0.5.1           scales_1.3.0           
+## [67] glue_1.7.0              Hmisc_5.1-3             tools_4.4.0            
+## [70] data.table_1.15.4       grid_4.4.0              impute_1.78.0          
+## [73] AnnotationDbi_1.66.0    colorspace_2.1-0        GenomeInfoDbData_1.2.12
+## [76] htmlTable_2.4.2         Formula_1.2-5           cli_3.6.2              
+## [79] fansi_1.0.6             gtable_0.3.5            sass_0.4.9             
+## [82] digest_0.6.35           BiocGenerics_0.50.0     farver_2.1.2           
+## [85] htmlwidgets_1.6.4       memoise_2.0.1           htmltools_0.5.8.1      
+## [88] lifecycle_1.0.4         httr_1.4.7              GO.db_3.19.1           
+## [91] statmod_1.5.0           bit64_4.0.5</code></pre>
 </div>
 <div id="navigation" class="section level1">
 <h1><em>Navigation</em></h1>
