@@ -132,7 +132,7 @@ There are a number of parameters that impact module builds. The first we will ex
 # You may wish to run on multiple processors
 # WGCNA::allowWGCNAThreads(nThreads = 4)
 
-fit <- pickSoftThreshold(data = t(dat$E),
+fit <- pickSoftThreshold(data = t(dat.subset$E),
                          powerVector = c(1:30),
                          networkType = "signed")
 ```
