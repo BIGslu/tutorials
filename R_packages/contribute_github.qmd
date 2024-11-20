@@ -1,0 +1,221 @@
+---
+title: "Contributing to R packages on GitHub"
+author: "Kim Dill-McFarland"
+date: today
+format:
+  html:
+    toc: true
+    self-contained: true
+    theme: pulse
+editor_options:
+  chunk_output_type: console
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.height=2.5, eval=FALSE) 
+```
+
+# Overview
+
+This document covers our process for contributing to R packages on GitHub. It assumes working knowledge of R and git. 
+
+# 0. Setup
+## Software
+
+This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should also install the following packages.
+
+```{r eval=FALSE}
+#CRAN packages
+install.packages(c("devtools", "roxygen2", "renv"))
+```
+
+And load them into your current R session.
+
+```{r warning=FALSE}
+library(devtools)
+library(roxygen2)
+library(renv)
+```
+
+## Example package
+
+In this tutorial, we demonstrate adding and updating a function a fake package called `testPackage`. This package is available at <URL>.
+
+# 1. Copy the package repo
+## 1.1 If you are a member of our organization
+
+As a member of UWISDOM (formerly BIGslu), you may have write privileges to the package repo. If you do, you will create a new repo `branch` for your edits. Then, clone the repo to your local computer and switch to your branch in your git software of choice.
+
+If you need write privileges, contact Kim. 
+
+## 1.2 If you are an outside contributer
+
+As an outside member, you do not have write privileges to our GitHub repos. Thus, you need to make `fork` of the package repo e.g. create a copy of the repo under your GitHub account.  Then, clone your repo `fork` to your local computer.
+
+# 2. Make changes to the repo
+## 2.1 Add a new function
+### 2.1.1 Gather your information
+
+Prior to incorporating your function into an existing package, you must have a working function. This must include:
+
+* R script with the function
+* Text describing each parameter, its options, and its default
+* Test data, either a minimal reproducible example or using example data 
+
+### 2.1.2. Create a script for your function within the package
+
+Open the `Rproject` within the package repo. Create a script for your function using `usethis` functionality. The name of this file must be the same as the name of you function.
+
+```{r}
+use_r("my_fxn")
+```
+
+```
+✔ Setting active project to
+  "/Users/kadm/Documents/GitHub/BIGslu/R_packages/testPackage".
+☐ Modify R/my_fxn.R.
+```
+
+Copy-paste your function into this script. Do not include any example data, test code, etc. Just the function. For example,
+
+```{r}
+my_fxn <- function(language = "english"){
+  if(language == "english"){ print("Hello!") }
+  if(language == "spanish"){ print("Hola!") }
+  if(language == "french"){ print("Bonjour!") }
+}
+```
+
+Save the script.
+
+### 2.1.3 Create a `roxygen` header
+
+Place you cursor within your function. Go to the top menu Code > Insert Reoxygen skeleton.
+
+![](screeenshot/roxygen.png){width=30%}
+
+You will see a skeleton in your R function.
+
+```
+#' Title
+#'
+#' @param language 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+```
+
+Based on your function, fill out the title, param, and export options. Parameters should be given in the form `@param param_nam Parm class, description. Default.` Include any necessary requirements in the description. For example,
+
+```
+#' Print hello in various languages
+#'
+#' @param language Character string of language to use. Must be lowercase. Default is 'english'
+#'
+#' @return Character string
+#' @export
+#'
+#' @examples
+```
+
+### 2.1.4 Create examples
+
+Using minimal reproducible data or even better, example data from within the package, write the simplest possible example for your function. Please use full parameter names in examples for clarity. For example,
+
+```
+#' @examples
+#' my_fxn(language = "english")
+```
+
+If desired, add additional examples to showcase different settings.
+
+### 2.1.5 Create documentation
+
+Using `devtools`, load all the functions in the package.
+
+```{r}
+load_all()
+```
+
+```
+ℹ Loading testPackage
+```
+
+Then, create/update documentation for functions.
+
+```{r}
+document()
+```
+
+```
+ℹ Updating testPackage documentation
+ℹ Loading testPackage
+Writing NAMESPACE
+```
+
+## 2.2 Modify an existing function
+### 2.2.1 Make changes to the function
+
+Open the `Rproject` within the package repo. Open the script in the `R/` directory for the function you want to edit. Make the necessary changes, and be sure to update the `roxygen` header and examples if parameters are altered.
+
+### 2.2.2 Update documenation 
+
+Using `devtools`, load all the functions in the package.
+
+```{r}
+load_all()
+```
+
+```
+ℹ Loading testPackage
+```
+
+Then, update documentation for functions.
+
+```{r}
+document()
+```
+
+```
+ℹ Updating testPackage documentation
+ℹ Loading testPackage
+Writing NAMESPACE
+```
+
+### 2.2.3 Check dependencies
+
+If your edits impact outputs used in other packages, like `kmFit` results used in `BIGpicture`, load that dependent package using `library` and check that examples for the relevant functions run without error using the new outputs.
+
+# 3. Test package build
+
+Once you have completed your additions/edits, run `check` to build and test the package. In general, it is a good idea to run `load_all`, `document`, and `check` all together to make sure everything is up-to-date before check.
+
+```{r}
+load_all()
+document()
+check()
+```
+
+Your goal it to see no errors, warnings, and comments like so.
+
+```
+── R CMD check results ───────────────────────────────────── testPackage 0.1.0 ────
+Duration: 12.8s
+
+0 errors ✔ | 0 warnings ✔ | 0 notes ✔
+```
+
+If you have errors, warnings, or notes, see the final section of this document for common fixes.
+
+# 4. Create a pull request
+
+From your `branch` or `fork`, create a pull request to the `main` branch of the original repo. Tag Kim for review and she will do (or delegate) final checks before merging into the main, public package.
+
+# Common `check` issues
+## Errors
+
+## Warnings
+
+## Notes

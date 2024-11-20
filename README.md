@@ -16,4 +16,4 @@
 
 ## GitHub
 
-Under development
+1. [Contributing to GitHub R packages](https://bigslu.github.io/tutorials/R_packages/contribute_github.html)
