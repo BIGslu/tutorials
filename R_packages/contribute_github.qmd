@@ -88,9 +88,19 @@ my_fxn <- function(language = "english"){
 
 Save the script.
 
-### 2.1.3 Create a `roxygen` header
+### 2.1.3 Declare and update packages
 
-Place you cursor within your function. Go to the top menu Code > Insert Reoxygen skeleton.
+Within your function script, you need to explicitly declare every non-base R package function. For example, `dplyr::select( )`. We do not usually code like this because we have `library` load packages. So go through your function and add package calls as needed.
+
+If you use a new package, add it to the package dependencies like so. 
+
+```{r}
+use_package("PACKAGE_NAME")
+```
+
+### 2.1.4 Create a `roxygen` header
+
+Place you cursor within your function. Go to the top menu Code > Insert Roxygen skeleton.
 
 ![](screeenshot/roxygen.png){width=30%}
 
@@ -120,7 +130,7 @@ Based on your function, fill out the title, param, and export options. Parameter
 #' @examples
 ```
 
-### 2.1.4 Create examples
+### 2.1.5 Create examples
 
 Using minimal reproducible data or even better, example data from within the package, write the simplest possible example for your function. Please use full parameter names in examples for clarity. For example,
 
@@ -131,7 +141,7 @@ Using minimal reproducible data or even better, example data from within the pac
 
 If desired, add additional examples to showcase different settings.
 
-### 2.1.5 Create documentation
+### 2.1.6 Create documentation
 
 Using `devtools`, load all the functions in the package.
 
@@ -160,7 +170,17 @@ Writing NAMESPACE
 
 Open the `Rproject` within the package repo. Open the script in the `R/` directory for the function you want to edit. Make the necessary changes, and be sure to update the `roxygen` header and examples if parameters are altered.
 
-### 2.2.2 Update documenation 
+### 2.2.2 Declare and update packages
+
+Within the function, you need to explicitly declare every non-base R package function. For example, `dplyr::select( )`. We do not usually code like this because we have `library` load packages. So go through your edits and add package calls as needed.
+
+If you use a new package, add it to the package dependencies like so. 
+
+```{r}
+use_package("PACKAGE_NAME")
+```
+
+### 2.2.3 Update documenation 
 
 Using `devtools`, load all the functions in the package.
 
@@ -184,7 +204,7 @@ document()
 Writing NAMESPACE
 ```
 
-### 2.2.3 Check dependencies
+### 2.2.4 Check dependencies
 
 If your edits impact outputs used in other packages, like `kmFit` results used in `BIGpicture`, load that dependent package using `library` and check that examples for the relevant functions run without error using the new outputs.
 
@@ -270,7 +290,52 @@ From your `branch` or `fork`, create a pull request to the `main` branch of the 
 
 # Common `check` issues
 ## Errors
+### One or more examples fail
+
+Go to the associated function's R script. Load all current functions with `load_all()` and then try running each line of the example until you recapitulate the error. Modify your examples until they work. Note you may need to load packages with `library` within the examples section if you are using functions outside of base R or the current package.
 
 ## Warnings
+### Non-standard license specification
+
+Delete you LICENSE file if it exists. Then, run ONE of the following to add a license correctly.
+
+```{r}
+use_mit_license()
+use_gpl3_license()
+```
+
+### checking dependencies in R code
+
+This warning will list packages not defined as dependencies in your code. Add each as dependency like so.
+
+```{r}
+use_package("PACKAGE_NAME")
+```
+
 
 ## Notes
+### no visible binding for global variable
+
+This means you reference a variable or object that is not defined within the function itself. This can cause issues if your local and function environments have objects with the same name. To fix this note, set these variables to NULL at the start of your function.
+
+```{r}
+my_fxn <- function(language = "english"){
+  SOMETHING <- NULL
+  ...
+}
+```
+
+You can string together multiple variables like so.
+
+```{r}
+SOMETHING <- SOMETHING_ELSE <- NULL
+```
+
+### no visible global function definition
+
+This means you use a function that is not defined within the current function's environment. To fix this note, make sure every time you use a function not in base R, you include the package path. For example,
+
+```{r}
+package::FUNCTION()
+```
+
