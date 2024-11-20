@@ -3113,6 +3113,12 @@ vertical-align: -.125em;
   <li><a href="#update-documenation" id="toc-update-documenation" class="nav-link" data-scroll-target="#update-documenation">2.2.2 Update documenation</a></li>
   <li><a href="#check-dependencies" id="toc-check-dependencies" class="nav-link" data-scroll-target="#check-dependencies">2.2.3 Check dependencies</a></li>
   </ul></li>
+  <li><a href="#add-example-data" id="toc-add-example-data" class="nav-link" data-scroll-target="#add-example-data">2.3 Add example data</a>
+  <ul class="collapse">
+  <li><a href="#create-example-data" id="toc-create-example-data" class="nav-link" data-scroll-target="#create-example-data">2.3.1 Create example data</a></li>
+  <li><a href="#add-new-example-data" id="toc-add-new-example-data" class="nav-link" data-scroll-target="#add-new-example-data">2.3.2 Add new example data</a></li>
+  <li><a href="#create-data-documentation" id="toc-create-data-documentation" class="nav-link" data-scroll-target="#create-data-documentation">2.3.3 Create data documentation</a></li>
+  </ul></li>
   </ul></li>
   <li><a href="#test-package-build" id="toc-test-package-build" class="nav-link" data-scroll-target="#test-package-build">3. Test package build</a></li>
   <li><a href="#create-a-pull-request" id="toc-create-a-pull-request" class="nav-link" data-scroll-target="#create-a-pull-request">4. Create a pull request</a></li>
@@ -3166,7 +3172,7 @@ vertical-align: -.125em;
 <h1>0. Setup</h1>
 <section id="software" class="level2">
 <h2 class="anchored" data-anchor-id="software">Software</h2>
-<p>This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should also install the following packages.</p>
+<p>This pipeline should be completed in <a href="https://cran.r-project.org/">R</a> and <a href="https://posit.co/download/rstudio-desktop/">RStudio</a>. You should also install the following packages.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#CRAN packages</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(<span class="st">&quot;devtools&quot;</span>, <span class="st">&quot;roxygen2&quot;</span>, <span class="st">&quot;renv&quot;</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -3299,14 +3305,62 @@ Writing NAMESPACE</code></pre>
 <p>If your edits impact outputs used in other packages, like <code>kmFit</code> results used in <code>BIGpicture</code>, load that dependent package using <code>library</code> and check that examples for the relevant functions run without error using the new outputs.</p>
 </section>
 </section>
+<section id="add-example-data" class="level2">
+<h2 class="anchored" data-anchor-id="add-example-data">2.3 Add example data</h2>
+<section id="create-example-data" class="level3">
+<h3 class="anchored" data-anchor-id="create-example-data">2.3.1 Create example data</h3>
+<p>The <code>usethis</code> package has a number of functions to codify data in packages. To create your example data, run the following function in the R package project.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use_data_raw</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>This creates/opens <code>data-raw/DATASET.R</code> where you can perform any coding needed to create, modify, and save your example data. Users who install this R package do not have access to this directory, so you can treat it as a contained working space. However, the GitHub repo is PUBLIC so assume anything included here is also PUBLIC. Thus, do not include primary or identifiable patient data in any objects.</p>
+</section>
+<section id="add-new-example-data" class="level3">
+<h3 class="anchored" data-anchor-id="add-new-example-data">2.3.2 Add new example data</h3>
+<p>Once you have your final example data, end the <code>data-raw/DATASET.R</code> script with the following to save the object to <code>data/</code>. Note that you need to modify the call to include your data object name and run this function for each individual data object to be included.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use_data</span>(example.data, <span class="at">overwrite =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<pre><code>✔ Adding R to Depends field in DESCRIPTION.
+✔ Creating data/.
+✔ Saving &quot;example.data&quot; to &quot;data/example.data.rda&quot;.
+☐ Document your data (see &lt;https://r-pkgs.org/data.html&gt;).</code></pre>
+</section>
+<section id="create-data-documentation" class="level3">
+<h3 class="anchored" data-anchor-id="create-data-documentation">2.3.3 Create data documentation</h3>
+<p>Unfortunately <code>document</code> does not automatically create documentation for data. Instead, create an R script in <code>R/</code> that is named the same as the data object like <code>R/example.data.R</code>. Fill out the information relevant to your example data. The required pieces include docType, name, keywords, and the data set name at the end. For example,</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; testPackage example data</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39;</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @format A data frame with 3 rows and 2 variables:</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; \describe{</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39;   \item{x}{integer. Value 1-3}</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39;   \item{y}{integer. Value 4-6}</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39;   }</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39;</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @source \url{Add_url_here}</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @references Add citation here</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @description A small example data frame</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @docType data</span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @name example.data</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @keywords datasets</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;example.data&quot;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Then run <code>document</code> to create the help page.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load_all</span>()</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">document</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
 </section>
 <section id="test-package-build" class="level1">
 <h1>3. Test package build</h1>
 <p>Once you have completed your additions/edits, run <code>check</code> to build and test the package. In general, it is a good idea to run <code>load_all</code>, <code>document</code>, and <code>check</code> all together to make sure everything is up-to-date before check.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load_all</span>()</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">document</span>()</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="fu">check</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load_all</span>()</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">document</span>()</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="fu">check</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Your goal it to see no errors, warnings, and comments like so.</p>
 <pre><code>── R CMD check results ───────────────────────────────────── testPackage 0.1.0 ────

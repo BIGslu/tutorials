@@ -22,7 +22,7 @@ This document covers our process for contributing to R packages on GitHub. It as
 # 0. Setup
 ## Software
 
-This pipeline should be completed in [R][R] and [RStudio][RStudio]. You should also install the following packages.
+This pipeline should be completed in [R](https://cran.r-project.org/) and [RStudio](https://posit.co/download/rstudio-desktop/). You should also install the following packages.
 
 ```{r eval=FALSE}
 #CRAN packages
@@ -187,6 +187,61 @@ Writing NAMESPACE
 ### 2.2.3 Check dependencies
 
 If your edits impact outputs used in other packages, like `kmFit` results used in `BIGpicture`, load that dependent package using `library` and check that examples for the relevant functions run without error using the new outputs.
+
+## 2.3 Add example data
+### 2.3.1 Create example data
+
+The `usethis` package has a number of functions to codify data in packages. To create your example data, run the following function in the R package project.
+
+```{r}
+use_data_raw()
+```
+
+This creates/opens `data-raw/DATASET.R` where you can perform any coding needed to create, modify, and save your example data. Users who install this R package do not have access to this directory, so you can treat it as a contained working space. However, the GitHub repo is PUBLIC so assume anything included here is also PUBLIC. Thus, do not include primary or identifiable patient data in any objects.
+
+### 2.3.2 Add new example data
+
+Once you have your final example data, end the `data-raw/DATASET.R` script with the following to save the object to `data/`. Note that you need to modify the call to include your data object name and run this function for each individual data object to be included.
+
+```{r}
+use_data(example.data, overwrite = TRUE)
+```
+
+```
+✔ Adding R to Depends field in DESCRIPTION.
+✔ Creating data/.
+✔ Saving "example.data" to "data/example.data.rda".
+☐ Document your data (see <https://r-pkgs.org/data.html>).
+```
+
+### 2.3.3 Create data documentation
+
+Unfortunately `document` does not automatically create documentation for data. Instead, create an R script in `R/` that is named the same as the data object like `R/example.data.R`. Fill out the information relevant to your example data. The required pieces include docType, name, keywords, and the data set name at the end. For example, 
+
+```{r}
+#' testPackage example data
+#'
+#' @format A data frame with 3 rows and 2 variables:
+#' \describe{
+#'   \item{x}{integer. Value 1-3}
+#'   \item{y}{integer. Value 4-6}
+#'   }
+#'
+#' @source \url{Add_url_here}
+#' @references Add citation here
+#' @description A small example data frame
+#' @docType data
+#' @name example.data
+#' @keywords datasets
+"example.data"
+```
+
+Then run `document` to create the help page.
+
+```{r}
+load_all()
+document()
+```
 
 # 3. Test package build
 

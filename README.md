@@ -16,4 +16,4 @@
 
 ## GitHub
 
-1. [Contributing to GitHub R packages](https://bigslu.github.io/tutorials/R_packages/contribute_github.html)
+1. [Contributing to R packages on GitHub](https://bigslu.github.io/tutorials/R_packages/contribute_github.html)
