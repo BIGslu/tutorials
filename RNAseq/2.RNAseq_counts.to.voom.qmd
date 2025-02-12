@@ -43,7 +43,6 @@ devtools::install_github("zhangyuqing/sva-devel")
 devtools::install_github("BIGslu/kimma")
 devtools::install_github("BIGslu/BIGpicture")
 devtools::install_github("BIGslu/RNAetc")
-devtools::install_github("BIGslu/SEARchways")
 ```
 
 And load them into your current R session.
@@ -53,7 +52,8 @@ And load them into your current R session.
 #| message: false
 
 library(tidyverse)
-library(BIGverse)
+library(BIGpicture)
+library(RNAetc)
 library(scales)
 library(sva)
 library(ggrepel)
