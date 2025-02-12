@@ -41,19 +41,17 @@ BiocManager::install(c("edgeR", "limma", "biomaRt", "patchwork"))
 #GitHub packages
 install.packages("devtools")
 devtools::install_github("zhangyuqing/sva-devel")
-devtools::install_github("BIGslu/BIGverse")
-#Or if fails, install packages individually
 devtools::install_github("BIGslu/kimma")
 devtools::install_github("BIGslu/BIGpicture")
 devtools::install_github("BIGslu/RNAetc")
-devtools::install_github("BIGslu/SEARchways")
 ```
 
 And load them into your current R session.
 
 ```{r warning=FALSE}
 library(tidyverse)
-library(BIGverse)
+library(BIGpicture)
+library(RNAetc)
 library(scales)
 library(sva)
 library(ggrepel)
@@ -68,9 +66,9 @@ set.seed(651)
 
 ## Example data
 
-Example data were obtained from virus-stimulated human plasmacytoid dendritic cells. Actual patient identifiers and metadata have been altered for this tutorial.
+Example data were obtained from virus-stimulated human plasmacytoid dendritic cells. Actual patient identifiers and metadata have been altered for this tutorial. You do not need to download any data; they are provide as example data in the `kimma` package.
 
->Dill-McFarland KA, Schwartz JT, Zhao H, Shao B, Fulkerson PC, Altman MC, Gill MA. 2022. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. Epub ahead of print. doi: [10.1016/j.jaci.2022.03.025](https://doi.org/10.1016/j.jaci.2022.03.025). --- [GitHub](https://github.com/altman-lab/pDC_public)
+>Dill-McFarland KA, Schwartz JT, Zhao H, Shao B, Fulkerson PC, Altman MC, Gill MA. 2022. Eosinophil-mediated suppression and Anti-IL-5 enhancement of plasmacytoid dendritic cell interferon responses in asthma. J Allergy Clin Immunol. Epub ahead of print. doi: [10.1016/j.jaci.2022.03.025](https://doi.org/10.1016/j.jaci.2022.03.025). --- [GitHub](https://github.com/altman-lab/P259_pDC_public)
 
 Specifically, this tutorial uses RNAseq data processed using our [SEAsnake][pipeline1] pipeline. These data are available in `kimma` and names `example.seasnake`.
 
@@ -220,8 +218,7 @@ For human:
 
 ```{r ensembl}
 #Get database
-ensembl <- biomaRt::useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl",
-                                mirror = "uswest")
+ensembl <- biomaRt::useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
 #Format gene key
 key <- biomaRt::getBM(attributes=c("ensembl_gene_id", "entrezgene_id", "hgnc_symbol", 
