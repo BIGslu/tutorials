@@ -1706,8 +1706,9 @@ factors that may impact expression.</p>
 <h3>A note on variable levels and factor order</h3>
 <p>The order of your variable levels is important for results
 interpretation. Here, our <code>virus</code> variable is a factor with
-order “none”, “HRV”. This means positive estimates are genes that are UP
-with HRV infection.</p>
+order “none”, “HRV”. Thus, the reference is “none” and the comparison
+level is “HRV. This means positive estimates are genes that are UP with
+HRV infection, because estimates are LEVEL - REFERENCE.</p>
 <pre class="r"><code>class(dat$targets$virus)</code></pre>
 <pre><code>## [1] &quot;factor&quot;</code></pre>
 <pre class="r"><code>levels(dat$targets$virus)</code></pre>

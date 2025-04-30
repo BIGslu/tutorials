@@ -166,7 +166,7 @@ plot_volcano(model_result = virus,
 
 ### A note on variable levels and factor order
 
-The order of your variable levels is important for results interpretation. Here, our `virus` variable is a factor with order "none", "HRV". This means positive estimates are genes that are UP with HRV infection.
+The order of your variable levels is important for results interpretation. Here, our `virus` variable is a factor with order "none", "HRV". Thus, the reference is "none" and the comparison level is "HRV. This means positive estimates are genes that are UP with HRV infection, because estimates are LEVEL - REFERENCE.
 
 ```{r}
 class(dat$targets$virus)
