@@ -21,7 +21,7 @@
 ## Our packages vignettes
 
 - BIGpicture: coming soon
-- [kimma](https://bigslu.github.io/kimma_vignette/kimma_vignette.html
+- [kimma](https://bigslu.github.io/kimma_vignette/kimma_vignette.html)
 - pullString: coming soon
 - RNAetc: coming soon
 - SEARchways: coming soon
