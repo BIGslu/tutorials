@@ -164,6 +164,31 @@ plot_volcano(model_result = virus,
              y_cutoff = 0.05)
 ```
 
+### A note on variable levels and factor order
+
+The order of your variable levels is important for results interpretation. Here, our `virus` variable is a factor with order "none", "HRV". This means positive estimates are genes that are UP with HRV infection.
+
+```{r}
+class(dat$targets$virus)
+levels(dat$targets$virus)
+```
+
+If your variable is not a factor, the order of levels will be automatically determined alphabetically.
+
+```{r}
+class(dat$targets$batch)
+levels(dat$targets$batch)
+sort(unique(dat$targets$batch))
+```
+
+If you do not like this order, convert variables to factors BEFORE running `kimma` models. For example, if we wanted to switch batch order.
+
+```{r}
+dat$targets <- dat$targets %>% 
+  mutate(batch = factor(batch, levels=c("2","1")))
+levels(dat$targets$batch)
+```
+
 ### Gene-level weights
 
 limma introduced gene-level weights to account for sequence library quality [Law 2014][voomWeights]. These weights are calculated in limma with `voomWithQualityWeights` and then kimma can incorporate them from the `EList` object or separately using the `weights` parameter.
