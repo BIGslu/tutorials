@@ -41,8 +41,6 @@ BiocManager::install(c("edgeR", "limma", "patchwork"))
 
 #GitHub packages
 install.packages("devtools")
-devtools::install_github("BIGslu/BIGverse")
-#Or if fails, install packages individually
 devtools::install_github("BIGslu/kimma")
 devtools::install_github("BIGslu/BIGpicture")
 devtools::install_github("BIGslu/RNAetc")
