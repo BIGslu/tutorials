@@ -50,7 +50,10 @@ And load them into your current R session.
 
 ```{r warning=FALSE}
 library(tidyverse)
-library(BIGverse)
+library(kimma)
+library(BIGpicture)
+library(RNAetc)
+library(SEARchways)
 library(limma)
 library(WGCNA)
 library(patchwork)
@@ -177,7 +180,7 @@ enrich.all %>%
   write_csv(file = "results/BIGprofiler.results.csv")
 ```
 
-Note that if you read this csv back into R, the `genes` column will not be formatting correctly for downstream `BIGverse` functions. Thus, we recommend saving data in `.RData` or `.Rds` in order to maintain formatting.
+Note that if you read this csv back into R, the `genes` column will not be formatting correctly for downstream our package functions. Thus, we recommend saving data in `.RData` or `.Rds` in order to maintain formatting.
 
 Alternatively, you can unnest the data to get 1 row per gene per pathway. Then when you read the `csv` into R, you can re-nest it like so.
 

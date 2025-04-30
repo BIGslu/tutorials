@@ -51,7 +51,10 @@ And load them into your current R session.
 
 ```{r warning=FALSE}
 library(tidyverse)
-library(BIGverse)
+library(kimma)
+library(BIGpicture)
+library(RNAetc)
+library(SEARchways)
 library(limma)
 library(edgeR)
 library(pvca)
