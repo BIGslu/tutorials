@@ -18,10 +18,6 @@
 
 1. [Contributing to R packages on GitHub](https://bigslu.github.io/tutorials/R_packages/contribute_github.html)
 
-## Our packages vignettes
+# R packages vignettes
 
-- BIGpicture: coming soon
-- [kimma](https://bigslu.github.io/kimma_vignette/kimma_vignette.html)
-- pullString: coming soon
-- RNAetc: coming soon
-- SEARchways: coming soon
+- https://bigslu.github.io/vignettes/
