@@ -17,3 +17,7 @@
 ## GitHub
 
 1. [Contributing to R packages on GitHub](https://bigslu.github.io/tutorials/R_packages/contribute_github.html)
+
+# R packages vignettes
+
+- https://bigslu.github.io/vignettes/
