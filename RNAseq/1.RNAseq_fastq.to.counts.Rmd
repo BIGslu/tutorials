@@ -33,7 +33,7 @@ Specifically, this tutorial is for human, bulk, paired-end RNA-seq. Modification
 We process RNAseq libraries on a Linux server through AWS. This document is meant as an overview and bash code chunks herein should not be run in R. To achieve our AWS setup, please follow the AWS tutorials to [setup an account][aws_tut] and [install conda software][conda_tut]. Alternatively, you can install the following software individually on the system you are using.
 
 * [FastQC][FastQC]
-* [AdapterRemoval][AdapterRemoval]
+* [cutadapt][cutadapt]
 * [samtools][samtools]
 * [bedtools][bedtools]
 * [Picard][Picard] (optional)
@@ -150,39 +150,36 @@ Note that we do not see low diversity at the ends where we identified the univer
 ![](figs/adapter_content_raw.png){width=49%} ![](figs/per_base_sequence_content_raw.png){width=49%}
 
 # 2. Adapter removal and quality filtering
-Adapters are trimmed and sequences are quality filtered using [AdapterRemoval][AdapterRemoval]. Trimmed files are saved in `results/fastq_trim`.
+Adapters are trimmed and sequences are quality filtered using [cutadapt][cutadapt]. Trimmed files are saved in `results/fastq_trim`.
 
 In these data, we have both 5' and 3' adapter contamination. Thus, quality filtering includes:
 
-* `--trim5p` trim the 5' end by N base pairs to remove adapters. This value should be equal to where the per base sequence content levels out around 25% for all base types.
-* `--adapter1 --adapter2` trim bp that align to known adapter sequences.
-* `--maxns` remove sequences with > N ambiguous base
-* `--trimqualities --minquality` trim ends until reach base with quality > N
-* `--minlength` remove reads < N bp in length
+* `-g` trim 5' bp that align to known adapter sequences. 
+* `-a` trim 3' bp that align to known adapter sequences. 
+* `--cut` trim the 5' end by N base pairs to remove adapters or barcodes. This value should be equal to where the per base sequence content levels out around 25% for all base types.
+* `--max-n` remove sequences with > N ambiguous base
+* `--quality-cutoff` trim ends until reach base with quality value
+* `--minimum-length` remove reads < N bp in length
 
 ```{bash}
 
-AdapterRemoval --file1 data/$read1 --file2 data/$read2 \
-    --basename results/fastq_trim/$basename --gzip \
-    --trim5p 10 --maxns 1 --minlength 15 \
-    --trimqualities --minquality 30 \
-    --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \
-    --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
-    --threads $threads
+cutadapt \
+  -g AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \
+  -a AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
+  --cut 10 --max-n 1 --quality-cutoff 30 --minimum-length 15 \
+  --cores $threads \
+  -o {output.R1} -p {output.R2} \
+  results/fastq_trim/"$basename"_R1.fastq.gz results/fastq_trim/"$basename"_R2.fastq.gz
     
 ```
 
 ### Alternate adapter filtering
 The above code will work for most Hawn data sets. However, you may need to make some modifications.
 
-* If your barcodes are a different length, modify the number of bp trimmed with `--trim5p`. 
-* If you do not have barcode contamination, remove the `--trim5p` option.
-* If you do not have adapter contamination, the original code will work but you can improve speed by removing the `--adapter1 --adapter2` options.
-* If you have different adapters, modify the sequences after `--adapter1 --adapter2`. You can determine adapter sequences for several common library preparations [here][adapters] or by using
-
-  ```{bash}
-  AdapterRemoval --identify-adapters --file1 $read1 --file2 $read2 --threads $threads
-  ```
+* If your barcodes are a different length, modify the number of bp trimmed with `--cut`. 
+* If you do not have barcode contamination, remove the `--cut` option.
+* If you do not have adapter contamination, the original code will work but you can improve speed by removing the `-g -a` options.
+* If you have different adapters, modify the sequences after `-g -a`. You can determine adapter sequences for several common library preparations [here][adapters].
 
 ### Re-assess quality
 Next, we assess trimmed sequence quality using [FastQC][FastQC] again. Results are saved in `results/fastqc/`.
@@ -451,13 +448,14 @@ do
             <(echo 'results/fastq_trim/') \
             <(awk -F'[_]S' '{print $1}' <(basename $file1)))
   
-  AdapterRemoval --file1 $file1 --file2 $file2 \
-    --basename $name --gzip \
-    --trim5p $adapter_length --maxns 1 --minlength 15 \
-    --trimqualities --minquality 30 \
-    --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \
-    --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
-    --threads $threads
+  cutadapt \
+    -g AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \
+    -a AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
+    --cut 10 --max-n 1 --quality-cutoff 30 --minimum-length 15 \
+    --cores $threads \
+    -o {output.R1} -p {output.R2} \
+    results/fastq_trim/"$basename"_R1.fastq.gz results/fastq_trim/"$basename"_R2.fastq.gz
+
 done
       
 ########################################
@@ -604,7 +602,7 @@ featureCounts -T $threads -g gene_id -t exon -p \
 [aws_tut]: https://github.com/BIGslu/tutorials/tree/main/AWS/1.AWS_setup_tutorial.html
 [conda_tut]: https://github.com/BIGslu/tutorials/tree/main/AWS/2.AWS_conda_setup.html
 [FastQC]: https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
-[AdapterRemoval]: https://adapterremoval.readthedocs.io/en/latest/
+[cutadapt]: https://cutadapt.readthedocs.io/en/stable/index.html
 [adapters]: https://support-docs.illumina.com/SHARE/AdapterSeq/Content/SHARE/AdapterSeq/AdapterSequencesIntro.htm
 [samtools]: http://www.htslib.org/
 [bedtools]: https://bedtools.readthedocs.io/en/latest/
