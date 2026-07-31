@@ -127,6 +127,10 @@ aws s3 sync ~/Desktop/ s3://kadm-test
 
 ## Making an EC2 instance
 
+
+**IMPORTANT NOTE!!!!!!!** AWS no longer supports the machine type in this tutorial. Courtney is working on outlining the new setup process so please contact her before trying to create an instance
+
+
 Returning to your AWS account homepage, go to the EC2 resources at <https://us-west-2.console.aws.amazon.com/ec2/>. 
 
 ![](images/aws_ec2.png){width=75%}
